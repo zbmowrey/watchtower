@@ -1,5 +1,11 @@
 # watchtower
 
+## Reference
+
+You can read more about why this project exists [here](https://zbmowrey.com/blog/watchtower-pattern/).
+
+## Introduction
+
 A **general-purpose engineering scaffold** — an opinionated Laravel + React
 standard, a searchable on-disk knowledge base, and the agent tooling to operate
 both from [Claude Code](https://claude.com/claude-code). Clone it, point your apps
