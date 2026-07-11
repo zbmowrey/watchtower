@@ -1,0 +1,39 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "_comment": "FLEET-STANDARD RENOVATE CONFIG. Copy verbatim to <app>/renovate.json (repo root) — scaffold/apply.sh does this. Pairs with the runner template .forgejo/workflows/renovate.yml (also in this bundle). Full doctrine + why Forgejo Actions over a k8s CronJob: wiki/infra/dependency-updates.md. This is a CONSERVATIVE preset for a solo operator: weekly digest (not continuous), minor/patch grouped into one PR per manager, majors always separate AND gated behind an explicit dependency-dashboard checkbox, automerge OFF everywhere, CVE fixes bypass the schedule. No app-specific edits should be needed for a plain composer+npm Laravel/Inertia app.",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["composer", "npm"],
+  "_comment_managers": "Explicitly scoped to the two managers this fleet actually has (Laravel/composer.json, Vite+React/package.json). Without this, Renovate's manager autodetection would also try to bump image tags inside .forgejo/workflows/*.yml (postgres, aquasec/trivy, git.example.com:3000/your-org/ci-php) — those are a deliberate, hand-ratcheted pin (see a documented tradeoff / forgejo-ci.md), not something a bot should touch.",
+  "dependencyDashboard": true,
+  "semanticCommits": "enabled",
+  "timezone": "UTC",
+  "schedule": ["before 6am on monday"],
+  "_comment_schedule": "A weekly digest window, not continuous updates — a solo operator reviews once a week, not on every upstream release. This is the OUTER bound shared by every app; the actual day/minute each app's workflow fires is staggered in .forgejo/workflows/renovate.yml's cron so your apps don't all land PRs (and trigger CI) on the shared Forgejo runner at the same moment. vulnerabilityAlerts below ignores this window entirely — a disclosed CVE never waits for Monday.",
+  "prConcurrentLimit": 3,
+  "prHourlyRateLimit": 2,
+  "_comment_limits": "Caps how many PRs one Renovate run can open — the shared Forgejo runner has capacity 6 (two replicas x 3, see forgejo-ci.md); this keeps one app's weekly sweep from filling the whole queue before anything else can run.",
+  "automerge": false,
+  "_comment_automerge": "OFF everywhere, deliberately, and not just 'conservative by default' — merging to main on this fleet is not inert. It triggers a Forgejo Actions build -> registry push -> k8s tag bump -> ArgoCD sync (see argocd-deploy-flow). An auto-merged dependency bump is an auto-DEPLOY to production with no human in the loop. You review and merge every Renovate PR by hand, exactly like every other PR.",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 5am on the first day of the month"],
+    "commitMessageAction": "Lock file maintenance"
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"],
+    "labels": ["security"]
+  },
+  "packageRules": [
+    {
+      "description": "Group every minor/patch/pin/digest update per manager into ONE PR instead of one-PR-per-package — the single biggest noise reduction for a solo reviewer.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "{{manager}} non-major dependencies"
+    },
+    {
+      "description": "Majors are NEVER grouped and NEVER opened automatically. fleet-app-specification pins the framework majors deliberately (React 19 / Laravel 13 / TS 6 / Vite 8 / Tailwind 4 / Inertia v3) — a major bump is your decision. This just surfaces it as a checkbox on the dependency-dashboard issue; ticking it is how you ask Renovate to open the PR.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}

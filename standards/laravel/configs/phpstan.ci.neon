@@ -1,0 +1,21 @@
+# FLEET-STANDARD — copy to <app>/phpstan.ci.neon and replace __APP__ with the
+# repo slug. Invoked ONLY by the CI larastan step (`composer stan -- -c
+# phpstan.ci.neon`); local runs keep the base phpstan.neon (default tmpdir).
+includes:
+    - phpstan.neon
+
+parameters:
+    # CI-only override: put PHPStan's result cache on the runner's persistent
+    # /phpstan-cache volume (mounted into every job container — k8s
+    # infra/forgejo-runner/configmap.yaml, alongside the composer/npm caches).
+    # Warm runs re-analyse only changed files PLUS their dependents — the
+    # sound version of "only check the diff" (path-scoping the analysis
+    # itself would miss breakage in untouched callers).
+    #
+    # The path is scoped to THIS project and its merge-target branch so no
+    # two apps — and no two target branches — ever share a cache. Do not
+    # flatten it to a shared dir: PHPStan revalidates entries by file hash so
+    # a mixed cache is never WRONG, but cross-app writes evict each other's
+    # warm state. Worst case anywhere is a cold-but-correct run (the CI step
+    # mkdir -p's the path; volume absent → container-local dir → cold).
+    tmpDir: /phpstan-cache/__APP__/main

@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Watchtower is the PUBLIC, sanitized mirror of a private engineering knowledge
+# base. The folders below exist here only as structural stubs: their skeleton is
+# tracked (via .gitkeep) so the shape of the system is legible, but their content
+# is deliberately withheld and must never be committed to this public repo.
+#
+# Pattern: ignore everything inside the folder, then re-include its .gitkeep.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Withheld: security posture / risk register (would advertise weaknesses)
+/wiki/security/*
+!/wiki/security/.gitkeep
+
+# Withheld: growth / pricing / revenue / conversion strategy
+/wiki/growth/*
+!/wiki/growth/.gitkeep
+
+# Withheld: product roadmaps (incl. client-owned apps)
+/wiki/roadmaps/*
+!/wiki/roadmaps/.gitkeep
+
+# Withheld: per-project business/operational pages
+/wiki/projects/*
+!/wiki/projects/.gitkeep
+
+# Withheld: dated internal churn logs (PR numbers, rollout status)
+/wiki/logs/*
+!/wiki/logs/.gitkeep
+
+# Withheld: internal todo backlogs
+/wiki/todos/*
+!/wiki/todos/.gitkeep
+
+# Withheld: internal infrastructure topology (hosts, cluster, deploy plumbing)
+/wiki/infra/*
+!/wiki/infra/.gitkeep
+
+# Withheld: work-in-progress session snapshots (reference private internals)
+/saves/*
+!/saves/.gitkeep
+
+# Withheld: generated audit/scan reports
+/reports/*
+!/reports/.gitkeep
+
+# Withheld: long-form internal planning content
+/content/*
+!/content/.gitkeep
+
+# ── Editor / OS / language cruft ─────────────────────────────────────────────
+/.idea/
+.DS_Store
+__pycache__/
+.env

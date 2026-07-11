@@ -1,0 +1,31 @@
+# Fleet husky pre-commit — FAST gate (lint-staged + types + unit slice).
+# lint-staged runs pint + scoped phpmd (bin/phpmd-staged.sh — phpmd on the staged
+# *.php only, ~0.1s) + prettier/eslint.
+# The WHOLE-PROGRAM checks (Larastan + the full Pest pyramid) run on pre-push; CI is
+# the backstop for both. Bypass in an emergency: git commit --no-verify
+#
+# Execution model (FLEET STANDARD): the WHOLE toolchain (JS + PHP) runs INSIDE the
+# dedicated `vite` compose service. It uses the app image (PHP + node), the shared
+# Linux `node_modules` the vite service installs/maintains on `up`, and the
+# compose-network reach to Postgres — so nothing runs on the host and there is no
+# host/container node_modules thrash. `vite` must be running (just start /
+# ./vendor/bin/sail up -d); the hook fails fast if it isn't.
+# Invocation: `./vendor/bin/sail exec -T -u sail vite <cmd>` — `-T` (no TTY, for git
+# hooks), `-u sail` (host-uid file ownership for prettier --write / pint). pest is
+# run as the raw binary IN the container (`./vendor/bin/pest`), NOT `sail pest`.
+
+VITE="./vendor/bin/sail exec -T -u sail vite"
+
+if [ -z "$(./vendor/bin/sail ps --status running -q vite 2>/dev/null)" ]; then
+    echo "✖ pre-commit: the vite container isn't running."
+    echo "  Start the stack first:  ./vendor/bin/sail up -d   (or: just start <app>)"
+    exit 1
+fi
+
+$VITE npx lint-staged
+
+# tsc needs the gitignored Wayfinder route/action types — generate them first.
+$VITE php artisan wayfinder:generate --with-form >/dev/null
+$VITE npm run --silent types:check
+
+$VITE ./vendor/bin/pest --testsuite=Unit

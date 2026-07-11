@@ -1,0 +1,18 @@
+# Fleet husky commit-msg — enforce Conventional Commits via commitlint.
+#
+# Execution model (FLEET STANDARD): runs INSIDE the dedicated `vite` compose service,
+# exactly like pre-commit / pre-push — node_modules is container-owned, nothing runs on
+# the host. The commit message file is piped to commitlint's STDIN (`commitlint < "$1"`)
+# rather than passed as a path, so there's no host↔container path translation. `vite`
+# must be running; the hook fails fast if it isn't.
+# Bypass in an emergency: git commit --no-verify
+
+VITE="./vendor/bin/sail exec -T -u sail vite"
+
+if [ -z "$(./vendor/bin/sail ps --status running -q vite 2>/dev/null)" ]; then
+    echo "✖ commit-msg: the vite container isn't running."
+    echo "  Start the stack first:  ./vendor/bin/sail up -d   (or: just start <app>)"
+    exit 1
+fi
+
+$VITE npx --no -- commitlint < "$1"

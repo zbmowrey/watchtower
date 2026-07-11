@@ -1,0 +1,278 @@
+name: ci
+# ─────────────────────────────────────────────────────────────────────────────
+# FLEET-STANDARD CI TEMPLATE.  Copy to <app>/.forgejo/workflows/ci.yml and
+# replace __APP__ with the repo slug (e.g. acme). This is the same gate on every
+# Laravel sibling — see wiki/infra/forgejo-ci.md + wiki/stack/laravel-engineering-standard.md.
+#
+# Runs inside the fleet image git.example.com:3000/your-org/ci-php (the stock runner
+# images have no PHP). Checkout is hand-rolled — this forge runs
+# REQUIRE_SIGNIN_VIEW=true, which 401s the runner's anonymous fetch of a `uses:`
+# action's own code, so marketplace/mirrored actions don't resolve.
+#
+# Two jobs — `static` / `tests` — uniform names → uniform branch-protection
+# contexts (`ci / static (pull_request)`, `ci / tests (pull_request)`). Keep them
+# as exactly these two jobs — do NOT split into parallel jobs: the job names ARE
+# the required-check contexts (splitting orphans them), and every extra job
+# re-pays the composer/npm/Wayfinder setup. Both run concurrently on the
+# capacity-6 runner. Finer fan-out only pays off with more workers + a
+# prep/artifact share — see the note at the bottom.
+#
+# Each job runs its tools as INDIVIDUAL STEPS, each guarded by
+# `if: ${{ !cancelled() }}` so every step runs even after an earlier one fails —
+# one run still surfaces EVERY finding (the old aggregated-step property) while
+# each tool shows its own pass/fail icon in the UI. The job goes red if any step
+# fails. Steps are ordered fastest→slowest for log readability ONLY (wall-clock is
+# the sum regardless — they share one job). Mutation (MSI) and Browser/E2E are
+# SEPARATE optional jobs, not part of this gate.
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    runs-on: docker
+    container:
+      image: git.example.com:3000/your-org/ci-php:latest
+      credentials:
+        username: your-org
+        password: ${{ secrets.CI_TOKEN }}
+    steps:
+      - name: checkout
+        env:
+          CI_TOKEN: ${{ secrets.CI_TOKEN }}
+        run: |
+          REF="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          git clone --depth 1 --branch "$REF" "http://oauth2:${CI_TOKEN}@git.example.com:3000/your-org/__APP__.git" .
+      - name: composer install
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: npm ci
+        run: npm ci --no-audit --no-fund
+      - name: app key + Wayfinder types
+        # Wayfinder routes/actions (gitignored) are needed for eslint/tsc/knip to
+        # resolve @/routes & @/actions; --with-form matches vite formVariants:true.
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+          php artisan wayfinder:generate --with-form
+      # Static checks — ONE STEP PER TOOL (see header). `if: ${{ !cancelled() }}`
+      # = run-all: every step runs even after an earlier failure; job red if any
+      # fails. Order is fastest→slowest (indicative; cosmetic under run-all).
+      # ── TOOL SET (settled — spec v1 §2/§4, fleet-uniform) ──────────────────
+      # composer-normalize · knip · jscpd · pint · npm audit
+      # (--omit=dev --audit-level=high, NOT audit-ci) · phpmd · composer audit
+      # (--abandoned=report) · prettier · tsc · larastan · eslint · psalm (taint,
+      # the fleet SAST). Mutation (MSI) + Browser/E2E stay SEPARATE local/optional
+      # jobs (mutation runs minutes; browser needs Chromium).
+      - name: composer-normalize
+        if: ${{ !cancelled() }}
+        run: composer normalize:check
+      - name: knip
+        if: ${{ !cancelled() }}
+        run: npm run knip
+      - name: jscpd (dup:check)
+        if: ${{ !cancelled() }}
+        run: npm run dup:check
+      - name: pint (lint:check)
+        if: ${{ !cancelled() }}
+        run: composer lint:check
+      - name: npm audit
+        if: ${{ !cancelled() }}
+        run: npm audit --omit=dev --audit-level=high
+      - name: phpmd (md)
+        if: ${{ !cancelled() }}
+        run: composer md
+      - name: composer audit
+        if: ${{ !cancelled() }}
+        run: composer audit --abandoned=report
+      - name: composer-require-checker (require-check)
+        if: ${{ !cancelled() }}
+        run: composer require-check
+      - name: composer-unused (unused)
+        if: ${{ !cancelled() }}
+        run: composer unused
+      - name: prettier (format:check)
+        if: ${{ !cancelled() }}
+        run: npm run format:check
+      - name: tsc (types:check)
+        if: ${{ !cancelled() }}
+        run: npm run types:check
+      - name: larastan (stan)
+        if: ${{ !cancelled() }}
+        # Persistent result cache on the runner's /phpstan-cache volume, scoped
+        # per project + target branch (copy configs/phpstan.ci.neon, replace
+        # __APP__). Warm runs re-analyse only changed files + dependents —
+        # measured: 8m58s cold → 3s warm. Each runner replica warms its own volume
+        # once. mkdir first: if the volume isn't mounted the dir is
+        # container-local and the run is just cold, never red.
+        run: |
+          mkdir -p /phpstan-cache/__APP__/main
+          composer stan -- -c phpstan.ci.neon
+      - name: eslint (lint:check)
+        if: ${{ !cancelled() }}
+        run: npm run lint:check
+      - name: psalm (taint)
+        if: ${{ !cancelled() }}
+        run: composer psalm-taint
+      - name: baseline ratchet guard (spec §2 — a baseline may only shrink)
+        # Fails if any static-analysis baseline (phpstan/phpmd/psalm) GREW vs the PR's
+        # merge-base — i.e. it was re-generated to absorb new findings. Deepen enough
+        # history for the merge-base; the guard falls back to the main tip otherwise,
+        # and exits non-zero (never silently green) if main isn't reachable.
+        if: ${{ !cancelled() }}
+        run: |
+          git fetch --quiet --deepen=100 origin "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" || true
+          git fetch --quiet --depth=100 origin main:refs/remotes/origin/main || true
+          sh bin/baseline-guard.sh
+      - name: migration safety (spec §6 — expand/contract)
+        # Destructive DDL in an ADDED migration needs an `// expand-contract:`
+        # marker — a PreSync migrate can't be un-migrated by a tag revert.
+        # Reuses the origin/main ref fetched by the baseline-guard step above.
+        if: ${{ !cancelled() }}
+        run: sh bin/migration-safety.sh origin/main
+      - name: notify alerts channel on failure
+        # Red CI posts to your alerts Discord channel (a CI sensor net —
+        # wiki/infra/fleet-alerting.md). Guard is in the script, not the `if:`
+        # (step-level env inside `if:` is unproven on act_runner): with the
+        # DISCORD_ALERT_WEBHOOK user-level Actions secret unset the step exits 0,
+        # so the whole thing is inert until the secret exists. `|| true` — a
+        # Discord outage must never turn a red run into a differently-red run.
+        if: ${{ failure() }}
+        env:
+          ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+        run: |
+          [ -n "$ALERT_WEBHOOK" ] || { echo "DISCORD_ALERT_WEBHOOK unset; skipping"; exit 0; }
+          curl -sf -X POST -H 'Content-Type: application/json' \
+            -d "{\"content\":\"🔴 **__APP__** ci/static failed on \`${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}\` — ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_NUMBER}\"}" \
+            "$ALERT_WEBHOOK" || true
+
+  tests:
+    runs-on: docker
+    container:
+      image: git.example.com:3000/your-org/ci-php:latest
+      credentials:
+        username: your-org
+        password: ${{ secrets.CI_TOKEN }}
+    services:
+      # STANDARD: every app's suite runs against Postgres (the prod engine),
+      # from RAM with durability off — a CI database that dies with the job
+      # gains nothing from crash safety, and every COMMIT otherwise pays a WAL
+      # flush. Measured on one app: this alone cut pest+coverage 12m28s → 7m04s.
+      # initdb -c writes the settings into postgresql.conf (PG 16+);
+      # max_locks_per_transaction=512 because migrate:fresh × parallel workers
+      # exhausts the 64-slot default lock table (SQLSTATE 53200).
+      # NOTE the tmpfs target: PG 18's image moved the data root UP from
+      # /var/lib/postgresql/data to /var/lib/postgresql — mount the parent.
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: testing
+          POSTGRES_USER: sail
+          POSTGRES_PASSWORD: password
+          POSTGRES_INITDB_ARGS: >-
+            -c fsync=off
+            -c synchronous_commit=off
+            -c full_page_writes=off
+            -c max_locks_per_transaction=512
+        options: >-
+          --tmpfs /var/lib/postgresql:rw
+          --health-cmd "pg_isready -U sail -d testing"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # Add per add-on: a `redis:` (Valkey apps) or `minio:` (MinIO apps) service
+      # ONLY if this app has integration tests that hit them — otherwise omit.
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres        # service name on the job network (not 127.0.0.1)
+      DB_PORT: "5432"
+      DB_DATABASE: testing
+      DB_USERNAME: sail
+      DB_PASSWORD: password
+    steps:
+      - name: checkout
+        env:
+          CI_TOKEN: ${{ secrets.CI_TOKEN }}
+        run: |
+          REF="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          git clone --depth 1 --branch "$REF" "http://oauth2:${CI_TOKEN}@git.example.com:3000/your-org/__APP__.git" .
+      - name: composer install
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: app key
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+      - name: build frontend (Vite manifest + Wayfinder — feature tests render Inertia pages)
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: bundle size budget (PERF — copy configs/bin/check-bundle-size.mjs + calibrate BUDGETS_KB per app)
+        if: ${{ !cancelled() }}
+        run: npm run bundle:check
+      # Test tools — ONE STEP PER TOOL (run-all via if:!cancelled), same rationale
+      # as `static`: a failing pest run no longer hides type-coverage / vitest.
+      # PARALLEL via `php artisan test --parallel` (NOT bare pest): Illuminate's
+      # ParallelRunner provisions one testing_test_<n> database per worker and
+      # pcov coverage merges across workers. Bare `pest --parallel` would race
+      # every worker onto ONE database. (The old "artisan test forks a subprocess
+      # that ignores -d and OOMs at 128M" objection is history: the ci-php image
+      # ships php.ini memory_limit=2G, which the forked workers inherit;
+      # memory_limit=-1 still covers the master/merge phase.)
+      # Measured on one app (2-core runner): 7m04s → 4m47s on top of the tmpfs slice.
+      # PREREQS before flipping an app to --parallel (wiki: ci-test-speed log):
+      #   1. sweep tests/ for cross-file helpers — a function defined in one test
+      #      file and called from another only resolves by single-process luck;
+      #      move shared helpers into tests/Pest.php (every worker loads it).
+      #   2. pin every env()-driven feature gate in phpunit.xml (hermetic tests).
+      #   3. compose.yaml pgsql needs command max_locks_per_transaction=512 so
+      #      local parallel runs don't hit SQLSTATE 53200.
+      - name: pest + coverage (parallel)
+        if: ${{ !cancelled() }}
+        # Retry-once absorbs the known transient coverage-bootstrap flake in the
+        # ci-php image (the step fails only if BOTH attempts fail) — every working
+        # fleet app carries this; the template was missing it, which
+        # red-failed a new app's first CI. Run only the
+        # populated suites: a `--testsuite` list naming an EMPTY suite (e.g. a
+        # scaffold's Integration with just a .gitkeep) is the other half of that
+        # flake, so list Integration here ONLY once the app has integration tests.
+        run: |
+          php -d memory_limit=-1 artisan test --parallel --testsuite=Unit,Feature,Architecture --coverage --min=80 \
+            || php -d memory_limit=-1 artisan test --parallel --testsuite=Unit,Feature,Architecture --coverage --min=80
+      - name: type-coverage
+        if: ${{ !cancelled() }}
+        run: composer type-coverage
+      - name: vitest
+        if: ${{ !cancelled() }}
+        run: npm run test
+      - name: notify alerts channel on failure
+        # Same contract as the static job's notify step (see comment there).
+        if: ${{ failure() }}
+        env:
+          ALERT_WEBHOOK: ${{ secrets.DISCORD_ALERT_WEBHOOK }}
+        run: |
+          [ -n "$ALERT_WEBHOOK" ] || { echo "DISCORD_ALERT_WEBHOOK unset; skipping"; exit 0; }
+          curl -sf -X POST -H 'Content-Type: application/json' \
+            -d "{\"content\":\"🔴 **__APP__** ci/tests failed on \`${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}\` — ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_NUMBER}\"}" \
+            "$ALERT_WEBHOOK" || true
+# ─────────────────────────────────────────────────────────────────────────────
+# Scaling note — fan-out with more workers:
+#   Today (2 runner replicas × capacity 3 = 6 concurrent jobs) keep these two
+#   jobs. To fan out further, split into php-static / js-static / php-tests /
+#   vitest and add a `setup` job that builds vendor+node_modules+public/build once
+#   and shares them as an artifact. NOTE: composer + npm now have PERSISTENT caches
+#   (the runner mounts forgejo-composer-cache / forgejo-npm-cache via
+#   COMPOSER_CACHE_DIR / NPM_CONFIG_CACHE — see wiki/infra/forgejo-ci.md), so a
+#   fresh install is cheaper than before; but `actions/cache` still won't resolve
+#   on this forge, and vendor/node_modules/public-build are NOT shared between jobs
+#   automatically — without an explicit artifact share each extra job re-installs.
+#
+# Optional separate jobs (own workflow files, not required for merge):
+#   - mutation: php -d memory_limit=-1 vendor/bin/pest --mutate --covered-only --min=<MSI>
+#   - browser:  needs a Chromium-capable image (`npx playwright install`); only
+#               for apps that actually have a Browser testsuite.
+# ─────────────────────────────────────────────────────────────────────────────

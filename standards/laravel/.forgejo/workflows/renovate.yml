@@ -1,0 +1,71 @@
+name: renovate
+# ─────────────────────────────────────────────────────────────────────────────
+# FLEET-STANDARD RENOVATE RUNNER TEMPLATE. Copy to <app>/.forgejo/workflows/renovate.yml,
+# replace __APP__ with the repo slug (e.g. acme), and set THIS APP'S cron minute from the
+# stagger table in wiki/infra/dependency-updates.md (do not copy the same minute to every
+# app — see below). Pairs with renovate.json (copied to the app repo root — the per-repo
+# behavior config, same bundle). Full doctrine, why Forgejo Actions was picked over a k8s
+# CronJob for this fleet, and the bot-account/token setup: wiki/infra/dependency-updates.md.
+#
+# Runs the OFFICIAL renovate/renovate image directly as the job container — this is
+# deliberately NOT a `uses:` marketplace action (the way most Renovate-on-CI guides do
+# it). This forge 401s a `uses:` action's own anonymous-git self-fetch
+# (REQUIRE_SIGNIN_VIEW=true — see wiki/infra/forgejo-ci.md), the same reason ci.yml
+# hand-rolls its checkout. Renovate needs NO checkout step at all, unlike ci.yml/
+# deploy.yml: it clones and pushes to the target repo itself over the Forgejo API using
+# RENOVATE_TOKEN, so this workflow really is just "pull the image, run one command."
+#
+# Toolchain: the default (non "-full") renovate/renovate image ships Node only and
+# installs PHP/Composer on demand via containerbase (binarySource=install — Renovate's
+# default since v36). No custom toolchain image needed here, unlike ci-php.
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  schedule:
+    # Mondays 14:00 UTC is __APP__'s slot in the fleet stagger table (see
+    # wiki/infra/dependency-updates.md) — CHANGE THE MINUTE per that table so five
+    # apps' Renovate PRs (and the CI they trigger) don't land on the shared runner
+    # at the same moment. Do not change the day without updating the table too.
+    - cron: '0 14 * * 1'
+  workflow_dispatch: {}
+
+concurrency:
+  group: renovate-__APP__
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: docker
+    timeout-minutes: 30
+    container:
+      # Public image, no registry credentials needed (unlike ci-php). Pinned exact —
+      # bump this deliberately (same ratchet pattern as the ci-php toolchain bump or
+      # the pinned Trivy version, a documented tradeoff), never `:latest`.
+      image: renovate/renovate:43.257.3
+    env:
+      RENOVATE_PLATFORM: forgejo
+      RENOVATE_ENDPOINT: https://git.example.com:3000/api/v1
+      RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+      RENOVATE_REPOSITORIES: your-org/__APP__
+      RENOVATE_GIT_AUTHOR: "renovate-bot <renovate-bot@your-org.local>"
+      RENOVATE_AUTODISCOVER: "false"
+      # Belt-and-suspenders: renovate.json ships in the repo before the first run, so
+      # onboarding (the "add a config?" PR) never actually triggers — this just makes
+      # sure it can't.
+      RENOVATE_ONBOARDING: "false"
+      LOG_LEVEL: info
+    steps:
+      - name: renovate
+        run: renovate
+# ─────────────────────────────────────────────────────────────────────────────
+# NEW-REPO FOOTGUN — same class as CI_TOKEN (see forgejo-ci.md): a fresh copy of this
+# workflow fails at "Set up job" / the first step until:
+#   1. a dedicated `renovate-bot` Forgejo user exists, with a Full name + email set on
+#      its profile (Renovate refuses to commit as an identity with no display name);
+#   2. `renovate-bot` is added as a Collaborator (write) on THIS repo;
+#   3. its PAT (repo rw, issue rw, user read, organization read — see
+#      wiki/infra/dependency-updates.md for the exact scope table) is stored as THIS
+#      repo's RENOVATE_TOKEN secret: `tea actions secrets create RENOVATE_TOKEN --repo
+#      your-org/<slug>` (bare command — it PROMPTS; do NOT pass --stdin, same gotcha as
+#      CI_TOKEN). The token value is the same renovate-bot PAT across every app repo,
+#      exactly like the fleet's shared CI_TOKEN pattern.
+# ─────────────────────────────────────────────────────────────────────────────

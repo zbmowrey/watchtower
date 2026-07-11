@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<psalm
+    errorLevel="8"
+    resolveFromConfigFile="true"
+    findUnusedCode="false"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://getpsalm.org/schema/config"
+    xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
+>
+    <!--
+      Fleet SAST. Psalm here does ONE job: taint (data-flow) security analysis,
+      run via `composer psalm-taint`. Larastan owns type-checking, so errorLevel
+      is the most lenient (8) to suppress regular type noise. The Laravel plugin
+      marks request helpers / Eloquent as taint sources and sinks so flows are
+      tracked through the framework. Mandated by spec v1 section 2 (SAST). See
+      wiki/stack/security-scanning.md.
+    -->
+    <projectFiles>
+        <directory name="app" />
+        <ignoreFiles>
+            <directory name="vendor" />
+        </ignoreFiles>
+    </projectFiles>
+    <plugins>
+        <pluginClass class="Psalm\LaravelPlugin\Plugin"/>
+    </plugins>
+</psalm>

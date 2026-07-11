@@ -1,0 +1,62 @@
+{
+    "_comment": "Fleet-standard package.json pieces. Merge into each app's package.json (keep app deps). Install the devDependencies with `npm i -D <names>`. eslint.config.js / tsconfig.json / .prettierrc / vitest.config.ts ship in this bundle; copy them in. Hook standard: husky + lint-staged + commitlint (`prepare: husky` auto-installs hooks on npm install); the .husky/pre-commit + .husky/pre-push + .husky/commit-msg templates ship alongside this file, and commitlint.config.js ships in configs/ (copied to root). commit-msg enforces Conventional Commits and, like every hook, runs IN the vite container — it pipes the message to commitlint's stdin (`commitlint < \"$1\"`) to avoid host↔container path translation. FLEET STANDARD: the WHOLE toolchain (JS + PHP) runs INSIDE the dedicated `vite` compose service — npm/JS tools are never run on the host. The vite container has the app image (PHP + node), installs/maintains the shared Linux node_modules on `up`, and reaches Postgres on the compose net. Hooks invoke it as `./vendor/bin/sail exec -T -u sail vite <cmd>` (the .husky/* templates do this) and fail fast if vite isn't running. This avoids the host/container node_modules thrash entirely. Bundle-size gate: copy configs/bin/check-bundle-size.mjs to <app>/bin/, calibrate BUDGETS_KB from a clean `npm run build` (+~10% headroom), and wire `bundle:check` into the tests CI job after the build step. NODE PIN (spec v1 §1): `engines.node` = 24.x + `.nvmrc` (configs/.nvmrc) + `.npmrc engine-strict=true` pin Node to the ci-php image's 24; bump the app pin and ci-php in lockstep. NPM AUDIT: there is no `audit` script — CI runs `npm audit --omit=dev --audit-level=high` directly (audit-ci was dropped, spec v1 §4). jsx-a11y + type-aware eslint are in eslint.config.js (spec v1 §2). LINT-STAGED SCOPED PHPMD (spec v1 §4): the `*.php` task runs pint THEN `bin/phpmd-staged.sh` (copy `configs/bin/phpmd-staged.sh` to `<app>/bin/`, chmod +x) — phpmd run against ONLY the staged files (every phpmd.xml rule is intra-file, so the verdict matches a full `composer md` run for those files) at ~0.1s regardless of app size, vs a whole-`app/` run that scales (a large app is already ~6.4s). The helper comma-joins the paths (phpmd needs one comma-list arg) and mirrors CI's `*/Filament/*,*/Domain/*/Data/*` carve-outs so a staged file there can't trip a check CI would skip. The `.sh` helper is NOT an npm binary, so it needs no knip `ignoreDependencies` entry (unlike `lint-staged`/`@commitlint/cli`). Larastan/psalm/knip/jscpd are deliberately NOT here — they are whole-program (scoping them is unsound); larastan stays on pre-push where its result cache makes it ~1s warm.",
+
+    "devDependencies": {
+        "@commitlint/cli": "*",
+        "@commitlint/config-conventional": "*",
+        "@eslint/js": "*",
+        "@stylistic/eslint-plugin": "*",
+        "@testing-library/dom": "*",
+        "@testing-library/jest-dom": "*",
+        "@testing-library/react": "*",
+        "@types/node": "^24",
+        "@vitest/coverage-v8": "*",
+        "eslint": "*",
+        "eslint-config-prettier": "*",
+        "eslint-import-resolver-typescript": "*",
+        "eslint-plugin-import": "*",
+        "eslint-plugin-jsx-a11y": "*",
+        "eslint-plugin-react": "*",
+        "eslint-plugin-react-hooks": "*",
+        "husky": "*",
+        "jscpd": "^5",
+        "jsdom": "*",
+        "knip": "*",
+        "lint-staged": "*",
+        "prettier": "*",
+        "prettier-plugin-tailwindcss": "*",
+        "typescript": "^6",
+        "typescript-eslint": "*",
+        "vitest": "*"
+    },
+
+    "engines": {
+        "node": "24.x"
+    },
+
+    "scripts": {
+        "format": "prettier --write resources/",
+        "format:check": "prettier --check resources/",
+        "lint": "eslint . --fix",
+        "lint:check": "eslint .",
+        "types:check": "tsc --noEmit",
+        "dup:check": "jscpd app",
+        "knip": "knip",
+        "bundle:check": "node bin/check-bundle-size.mjs",
+        "test": "vitest run",
+        "test:coverage": "vitest run --coverage",
+        "prepare": "husky"
+    },
+
+    "lint-staged": {
+        "*.php": [
+            "vendor/bin/pint",
+            "sh bin/phpmd-staged.sh"
+        ],
+        "resources/**/*.{ts,tsx,js,jsx}": [
+            "prettier --write",
+            "eslint --fix"
+        ],
+        "**/*.{css,json,md,yml,yaml}": "prettier --write"
+    }
+}

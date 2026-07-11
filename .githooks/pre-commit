@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# watchtower pre-commit guard. Activate once per clone with:
+#   git config core.hooksPath .githooks
+# Runs the mechanical anti-rot suite; a red HARD guard blocks the commit.
+exec "$(git rev-parse --show-toplevel)/bin/check"

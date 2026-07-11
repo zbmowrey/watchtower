@@ -1,0 +1,13 @@
+{
+    "preset": "laravel",
+    "rules": {
+        "declare_strict_types": true,
+        "fully_qualified_strict_types": {
+            "import_symbols": true
+        },
+        "new_with_parentheses": {
+            "anonymous_class": false,
+            "named_class": false
+        }
+    }
+}

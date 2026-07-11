@@ -1,0 +1,6 @@
+# react-drift.allow — justified divergences from converged-set.md
+#
+# One entry per line: <app>:<path>  # reason (mirrors an ACCEPTED-DEVIATION in
+# fleet-frontend-specification §8). bin/react-drift (backlog B-1) reads this to skip a
+# path it would otherwise flag. NEVER add a line to silence real drift — a divergence
+# here MUST have a matching §8 F-nn justification. Empty until the guard ships.

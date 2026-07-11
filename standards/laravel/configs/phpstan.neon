@@ -1,0 +1,42 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/nesbot/carbon/extension.neon
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+    - vendor/pestphp/pest/extension.neon
+    - vendor/pestphp/pest/phpstan-pest-extension.neon
+
+parameters:
+    # Analyse production code and the structural/unit suites. Config, routes and
+    # migrations are declarative framework idiom — we don't strict-rule
+    # them. Feature/Integration tests boot the framework and aren't analysed.
+    paths:
+        - app/
+        - database/seeders/
+        - tests/Unit/
+        - tests/Architecture/
+
+    # Day-1 ceiling: level 8, no baseline file. Greenfield code passes clean,
+    # and we never grandfather debt in. (Bump to 9/max later if desired.)
+    level: 8
+
+    # phpstan-strict-rules on, minus the one Laravel-hostile rule:
+    # dynamicCallOnStaticMethod flags Eloquent's Model::query() / facade static
+    # API — idiomatic Laravel that Larastan already models correctly.
+    strictRules:
+        dynamicCallOnStaticMethod: false
+
+    # Treat readonly property writes outside the constructor as errors.
+    checkModelProperties: true
+
+    parallel:
+        maximumNumberOfProcesses: 4
+
+    reportUnmatchedIgnoredErrors: true
+
+    ignoreErrors:
+        # arch() chains (->preset(), ->expect(), ->toBeUsed(), ...) are a Pest DSL
+        # the phpstan-pest extension represents as TestCall; the fluent arch
+        # methods aren't on that stub. Scoped strictly to the architecture suite.
+        -
+            message: '#^Call to an undefined method Pest\\PendingCalls\\TestCall::.*\(\)\.$#'
+            path: tests/Architecture/*

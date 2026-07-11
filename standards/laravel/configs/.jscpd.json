@@ -1,0 +1,13 @@
+{
+    "minTokens": 50,
+    "threshold": 10,
+    "reporters": ["console"],
+    "absolute": true,
+    "gitignore": true,
+    "ignore": [
+        "**/Filament/**",
+        "**/resources/js/actions/**",
+        "**/resources/js/routes/**",
+        "**/resources/js/wayfinder/**"
+    ]
+}

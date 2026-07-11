@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<ruleset name="LaravelFleet"
+         xmlns="http://pmd.sf.net/ruleset/1.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sf.net/ruleset/1.0.0 http://pmd.sf.net/ruleset_xml_schema.xsd"
+         xsi:noNamespaceSchemaLocation="http://pmd.sf.net/ruleset_xml_schema.xsd">
+    <description>
+        Fleet standard: complexity, cleanliness and design limits, tuned for
+        Laravel. The clean-code/controversial rulesets that fight framework
+        idioms (StaticAccess on facades, camelCase DB columns, superglobals) are
+        intentionally omitted — Pint, Larastan and the arch tests cover that
+        ground. The point of PHPMD here is hard ceilings on complexity and dead
+        code. Run with `--exclude '*/Filament/*,*/Domain/*/Data/*'` (Filament
+        resource scaffolding is framework boilerplate; Domain Data DTOs
+        legitimately carry many constructor params — both are framework-friction,
+        not real risk, per spec v1 §2). The other tuned carve-out is the
+        domain-wiring provider's container CouplingBetweenObjects (it binds the
+        whole domain) — exempt that per-finding with an inline
+        `@SuppressWarnings("PHPMD.CouplingBetweenObjects")`, not by loosening the
+        rule. Quote the value: PHPStan's PHPDoc parser rejects the unquoted,
+        dotted form (phpDoc.parseError), while PHPMD matches it either way.
+        NumberOfChildren is raised to 30 for Laravel controller/base-class
+        headroom.
+    </description>
+
+    <!-- Code size: the complexity ceilings (cyclomatic <= 10). -->
+    <rule ref="rulesets/codesize.xml/CyclomaticComplexity">
+        <properties>
+            <property name="reportLevel" value="10"/>
+        </properties>
+    </rule>
+    <rule ref="rulesets/codesize.xml/NPathComplexity"/>
+    <rule ref="rulesets/codesize.xml/ExcessiveMethodLength"/>
+    <rule ref="rulesets/codesize.xml/ExcessiveClassLength"/>
+    <rule ref="rulesets/codesize.xml/ExcessiveParameterList"/>
+    <rule ref="rulesets/codesize.xml/ExcessivePublicCount"/>
+    <rule ref="rulesets/codesize.xml/TooManyFields"/>
+    <rule ref="rulesets/codesize.xml/TooManyMethods">
+        <properties>
+            <property name="maxmethods" value="20"/>
+        </properties>
+    </rule>
+    <rule ref="rulesets/codesize.xml/TooManyPublicMethods">
+        <properties>
+            <property name="maxmethods" value="15"/>
+        </properties>
+    </rule>
+    <rule ref="rulesets/codesize.xml/ExcessiveClassComplexity"/>
+
+    <!-- Dead code: unused private members, params, locals. -->
+    <rule ref="rulesets/unusedcode.xml"/>
+
+    <!-- Design smells: eval/exit/goto, deep inheritance, empty catch, debug code. -->
+    <rule ref="rulesets/design.xml/ExitExpression"/>
+    <rule ref="rulesets/design.xml/EvalExpression"/>
+    <rule ref="rulesets/design.xml/GotoStatement"/>
+    <rule ref="rulesets/design.xml/NumberOfChildren">
+        <properties>
+            <property name="minimum" value="30"/>
+        </properties>
+    </rule>
+    <rule ref="rulesets/design.xml/DepthOfInheritance"/>
+    <rule ref="rulesets/design.xml/CouplingBetweenObjects"/>
+    <rule ref="rulesets/design.xml/DevelopmentCodeFragment"/>
+    <rule ref="rulesets/design.xml/EmptyCatchBlock"/>
+    <rule ref="rulesets/design.xml/CountInLoopExpression"/>
+
+    <!-- Naming: keep names meaningful, but allow Laravel-idiomatic short ids. -->
+    <rule ref="rulesets/naming.xml/ConstructorWithNameAsEnclosingClass"/>
+    <rule ref="rulesets/naming.xml/ConstantNamingConventions"/>
+    <rule ref="rulesets/naming.xml/LongVariable">
+        <properties>
+            <property name="maximum" value="35"/>
+        </properties>
+    </rule>
+    <rule ref="rulesets/naming.xml/ShortMethodName">
+        <properties>
+            <property name="minimum" value="2"/>
+        </properties>
+    </rule>
+</ruleset>

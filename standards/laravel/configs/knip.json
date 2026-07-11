@@ -1,0 +1,25 @@
+{
+    "$schema": "https://unpkg.com/knip@6/schema.json",
+    "entry": [
+        "resources/js/app.tsx",
+        "resources/js/pages/**/*.tsx",
+        "resources/js/components/ui/**/*.{ts,tsx}",
+        "resources/js/layouts/**/*.{ts,tsx}"
+    ],
+    "project": ["resources/js/**/*.{ts,tsx}"],
+    "ignoreDependencies": [
+        "tw-animate-css",
+        "tailwindcss",
+        "concurrently",
+        "laravel-echo",
+        "@testing-library/dom",
+        "@testing-library/react",
+        "@commitlint/cli",
+        "lint-staged"
+    ],
+    "rules": {
+        "types": "off",
+        "unlisted": "off",
+        "binaries": "off"
+    }
+}

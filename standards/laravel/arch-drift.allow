@@ -1,0 +1,11 @@
+# Documented forced exceptions to fleet arch-tier consistency (bin/arch-drift).
+#
+# Format:  <app>/<TierFile.php>: <one-line reason>
+#
+# A divergence listed here is a TRACKED, intentional exception — not drift.
+# Anything that diverges from canonical and is NOT listed here fails the check.
+# When you add an entry, the app's tier file should carry the same reason as a
+# comment, so the carve-out is self-documenting in both places.
+
+# Example (replace with your own apps' documented exceptions):
+acme/ValueObjectsTest.php: enum rule only — this app has no App\…\Data DTO namespace
