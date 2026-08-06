@@ -11,10 +11,6 @@
 /wiki/security/*
 !/wiki/security/.gitkeep
 
-# Withheld: growth / pricing / revenue / conversion strategy
-/wiki/growth/*
-!/wiki/growth/.gitkeep
-
 # Withheld: product roadmaps (incl. client-owned apps)
 /wiki/roadmaps/*
 !/wiki/roadmaps/.gitkeep
