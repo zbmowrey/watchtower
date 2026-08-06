@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Skill rot guard for all repo-local agent skills.
+#
+# Skills are PROCEDURE; project facts (the roster, version numbers, PR numbers,
+# dates) belong in the wiki and should be injected at runtime, not baked into a
+# SKILL.md where they silently go stale.
+#
+# Modes:
+#   bin/skill-lint --all      scan .claude/skills and .agents/skills
+#   (JSON on stdin)           hook mode: lint only the touched SKILL.md
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Optional: one project slug per line. If you keep a roster of managed apps, list
+# them here and the "hardcoded roster" check below turns on. Without the file that
+# check is skipped; the PR-number and date checks always run.
+ROSTER="$ROOT/.skill-lint-roster"
+
+canon() {
+  local path="$1" dir base
+  dir="$(dirname "$path")"
+  base="$(basename "$path")"
+  (cd "$dir" 2>/dev/null && printf '%s/%s\n' "$(pwd -P)" "$base") || printf '%s\n' "$path"
+}
+
+# Managed app slugs = the roster that shouldn't be hand-listed in a skill.
+# Keep this portable for macOS bash 3.2.
+LARAVEL=()
+if [ -f "$ROSTER" ]; then
+  while IFS= read -r _s; do
+    case "$_s" in ''|\#*) continue ;; esac
+    LARAVEL+=("$_s")
+  done < "$ROSTER"
+fi
+
+lint_file() {
+  local f="$1" findings=0 body hits s
+  [ -f "$f" ] || return 0
+  body="$(cat "$f")"
+
+  if grep -nE '(#[0-9]+|pulls/[0-9]+)' "$f" >/dev/null; then
+    echo "  x PR number(s) - move rollout/PR history to wiki/logs/, inject if needed:"
+    grep -nE '(#[0-9]+|pulls/[0-9]+)' "$f" | sed 's/^/      /'
+    findings=1
+  fi
+
+  if grep -nE '[0-9]{4}-[0-9]{2}-[0-9]{2}' "$f" >/dev/null; then
+    echo "  x dated fact(s) - dates are news; keep them in wiki/logs/, not a skill:"
+    grep -nE '[0-9]{4}-[0-9]{2}-[0-9]{2}' "$f" | sed 's/^/      /'
+    findings=1
+  fi
+
+  hits=0
+  if [ "${#LARAVEL[@]}" -gt 0 ]; then
+    for s in "${LARAVEL[@]}"; do
+      [ -n "$s" ] && printf '%s\n' "$body" | grep -qw "$s" && hits=$((hits + 1))
+    done
+  fi
+
+  if [ "$hits" -ge 3 ]; then
+    echo "  x hardcoded fleet roster ($hits managed apps named) - say 'a managed Laravel"
+    echo "    sibling' and inject the roster/page at runtime (the roster owns the list)."
+    findings=1
+  fi
+
+  return "$findings"
+}
+
+all_skill_files() {
+  local f resolved seen=""
+  for f in "$ROOT"/.claude/skills/*/SKILL.md "$ROOT"/.agents/skills/*/SKILL.md; do
+    [ -f "$f" ] || continue
+    resolved="$(canon "$f")"
+    case "$seen" in
+      *"|$resolved|"*) continue ;;
+    esac
+    seen="${seen}|${resolved}|"
+    printf '%s\n' "$f"
+  done
+}
+
+if [ "${1:-}" = "--all" ]; then
+  rc=0
+  while IFS= read -r f; do
+    if ! out="$(lint_file "$f")"; then
+      echo "SKILL rot: ${f#"$ROOT/"}"
+      echo "$out"
+      rc=1
+    fi
+  done < <(all_skill_files)
+  [ "$rc" = 0 ] && echo "OK: all skills clean."
+  exit "$rc"
+fi
+
+payload="$(cat)"
+file="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)"
+case "$file" in
+  "$ROOT"/.claude/skills/*/SKILL.md|"$ROOT"/.agents/skills/*/SKILL.md) ;;
+  *) exit 0 ;;
+esac
+
+if ! out="$(lint_file "$file")"; then
+  echo "SKILL rot in ${file#"$ROOT/"} - skills are procedure; facts belong in the wiki:" >&2
+  echo "$out" >&2
+  exit 2
+fi
+exit 0

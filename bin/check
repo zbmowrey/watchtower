@@ -2,7 +2,7 @@
 # watchtower guard suite — the mechanical anti-rot for the wiki. Run by the
 # .githooks/pre-commit hook. HARD checks fail the commit; SOFT checks only report.
 #
-#   HARD  wiki frontmatter · wiki hub integrity · hubs current
+#   HARD  wiki frontmatter · wiki hub integrity · hubs current · skill rot
 #   SOFT  dangling [[wikilinks]] (forward-links are allowed while a page is a stub)
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -15,6 +15,7 @@ echo "watchtower guards"
 hard "wiki frontmatter"   bin/wiki lint
 hard "wiki hub integrity" bin/wiki lint --hubs
 hard "wiki hubs current"  bin/wiki index --check
+hard "skill rot"          bin/skill-lint --all
 soft "dangling wikilinks" bin/wiki lint --links
 
 echo ""

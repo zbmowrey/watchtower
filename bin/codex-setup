@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Inspect the repo-local Codex parity layer.
+#
+# Watchtower keeps ONE project law and ONE set of reusable procedures, and lets
+# each agent runtime load them through its own native surface. This validates
+# that the Codex half is wired. See wiki/meta/agent-runtime-parity.md.
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bin/codex-setup check
+
+Commands:
+  check   Validate the repo-local Codex parity layer.
+
+Writable roots (which directories Codex may edit in workspace-write mode) are
+USER-level config, not repo config. Put them in ~/.codex/config.toml so a clone
+never carries one machine's paths.
+EOF
+}
+
+check() {
+  local rc=0 hook
+
+  echo "codex parity checks"
+
+  if [ -L "$ROOT/.agents/skills" ] || [ -d "$ROOT/.agents/skills" ]; then
+    echo "  ok .agents/skills present"
+  else
+    echo "  x  .agents/skills missing (ln -s ../.claude/skills .agents/skills)"
+    rc=1
+  fi
+
+  if [ -f "$ROOT/.codex/config.toml" ]; then
+    echo "  ok .codex/config.toml present"
+  else
+    echo "  x  .codex/config.toml missing"
+    rc=1
+  fi
+
+  for hook in "$ROOT/.codex/hooks/session-context.sh" "$ROOT/.codex/hooks/post-edit-guards.sh"; do
+    if [ -x "$hook" ]; then
+      echo "  ok ${hook#"$ROOT/"} executable"
+    else
+      echo "  x  ${hook#"$ROOT/"} missing or not executable"
+      rc=1
+    fi
+  done
+
+  if [ -f "$ROOT/AGENTS.md" ]; then
+    echo "  ok AGENTS.md present"
+  else
+    echo "  x  AGENTS.md missing (Codex's entry point)"
+    rc=1
+  fi
+
+  "$ROOT/bin/skill-lint" --all || rc=1
+
+  exit "$rc"
+}
+
+case "${1:-check}" in
+  check) check ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

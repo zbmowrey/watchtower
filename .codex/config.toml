@@ -1,0 +1,26 @@
+# Watchtower repo-local Codex configuration.
+#
+# Keep this file limited to project behavior that is safe to share. Personal
+# model choices, provider credentials, broad writable roots, and machine-local
+# notification settings belong in ~/.codex/config.toml.
+
+[features]
+hooks = true
+
+[[hooks.SessionStart]]
+matcher = "startup|resume|clear|compact"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = '"$(git rev-parse --show-toplevel)/.codex/hooks/session-context.sh"'
+timeout = 30
+statusMessage = "Loading Watchtower project context"
+
+[[hooks.PostToolUse]]
+matcher = "Edit|Write|apply_patch"
+
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = '"$(git rev-parse --show-toplevel)/.codex/hooks/post-edit-guards.sh"'
+timeout = 30
+statusMessage = "Checking Watchtower edited files"

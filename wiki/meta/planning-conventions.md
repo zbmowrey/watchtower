@@ -26,7 +26,7 @@ inject this page rather than re-stating the format.
 > *deviations from [[fleet-app-specification]]* and is owned by the
 > `convergence-audit` skill. Different domain, different owner.
 
-`<slug>` / `<project>` is the app's `apps.json` slug (read via `bin/fleet`), plus
+`<slug>` / `<project>` is the app's roster slug, plus
 `k8s`, `watchtower`, or `fleet` for cross-cutting work.
 
 ---

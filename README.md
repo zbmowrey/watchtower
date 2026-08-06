@@ -1,6 +1,6 @@
 # watchtower
 
-117 wiki pages, 53 runnable config artifacts, and 12 agent skills, in one repo you clone and
+139 wiki pages, 66 runnable config artifacts, and 12 agent skills, in one repo you clone and
 point at your own work.
 
 Watchtower is a scaffold for building software to a standard and then getting people to use it.
@@ -59,6 +59,10 @@ everything else pointing at it with `[[wikilinks]]`.
 `bin/wiki` searches it, injects a page plus everything that page links to, lints the frontmatter
 contract, and regenerates the domain hubs. It needs nothing beyond Python, and uses `rg` when it
 finds one.
+
+The same procedures run under more than one agent runtime: `AGENTS.md` is Codex's entry point
+and points at `CLAUDE.md` as the shared law, `.agents/skills` symlinks to `.claude/skills` so a
+workflow is never hand-copied, and `bin/codex-setup check` validates the wiring.
 
 `.claude/skills/` holds 12 reusable agent procedures: wiki maintenance, Pest testing, architecture
 mapping, code review, roadmap and todo planning, session save and restore, and a copywriting
