@@ -9,3 +9,12 @@
 
 # Example (replace with your own apps' documented exceptions):
 acme/ValueObjectsTest.php: enum rule only — this app has no App\…\Data DTO namespace
+
+# Edge-cached public pages — apps that serve their marketing surface from a CDN.
+# NOT a fleet-wide ratchet. Adopt per app, deliberately, via the opt-in bundle in
+# standards/laravel/edge-cache/. Dropping Vite::prefetch costs auth-heavy apps
+# in-app navigation speed for a caching benefit they never collect.
+acme/AppServiceProvider.php: edge-cached public pages — Vite::useCspNonce + Vite::prefetch omitted; both emit per-RESPONSE output (a nonce in script-src and its own inline script), which makes the CSP header and the document vary per request and so uncacheable at the CDN. Inline scripts are pinned by sha256 instead (App\Support\ThemeScript); 'unsafe-inline' is still not restored
+
+# Multi-tenant category deviation (§7 A-07) — every subdomain-per-tenant app.
+acme/AppServiceProvider.php: MT — URL::useOrigin(app.url) omitted; pinning the origin rewrites the HOST of every generated URL to the central domain and breaks subdomain-per-tenant links (URL::forceScheme still applied)

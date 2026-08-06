@@ -14,7 +14,7 @@ agent at a Laravel codebase; it follows the framework to produce an evidence-bac
 audit. The repo is the machine; a run produces the report.
 
 - **Location:** `~/code/cquality` · **Public OSS:** <https://github.com/your-org/cquality> (MIT).
-- **Roster:** `apps.json` code **`cq`** (`kind: tool`, `managed: true`, `run: null`,
+- **Roster entry:** code **`cq`** (`kind: tool`, `managed: true`, `run: null`,
   `enabled: false`, `deploy: none` — invoked on-demand against a sibling, not a
   running service). This page is the roster's `wikiPage` target for `cquality` —
   deliberately *not* duplicated under `wiki/projects/` (one fact, one owner; a second

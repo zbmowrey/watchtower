@@ -52,6 +52,10 @@ mkdir -p "$target/bin" "$target/vendor-bin/phpmd" "$target/tests/js" "$target/.h
   cp "$STD/configs/bin/phpmd-staged.sh" "$target/bin/phpmd-staged.sh"
   chmod +x "$target/bin/phpmd-staged.sh"
   say "hook: bin/phpmd-staged.sh  (lint-staged scoped phpmd on staged *.php — pre-commit)"; }
+[ -f "$STD/configs/bin/ci-detect-changes.sh" ] && {
+  cp "$STD/configs/bin/ci-detect-changes.sh" "$target/bin/ci-detect-changes.sh"
+  chmod +x "$target/bin/ci-detect-changes.sh"
+  say "ci: bin/ci-detect-changes.sh  (path-scoped CI — the detect step in ci.yml/build-check.yml; fail-safe flags)"; }
 [ -f "$STD/configs/vendor-bin/phpmd/composer.json" ] && {
   cp "$STD/configs/vendor-bin/phpmd/composer.json" "$target/vendor-bin/phpmd/composer.json"
   say "tool: vendor-bin/phpmd/composer.json  (bamarni-isolated phpmd)"; }
@@ -78,7 +82,7 @@ fi
 if [ -f "$STD/.forgejo/workflows/renovate.yml" ]; then
   mkdir -p "$target/.forgejo/workflows"
   sed "s/__APP__/$slug/g" "$STD/.forgejo/workflows/renovate.yml" > "$target/.forgejo/workflows/renovate.yml"
-  say "renovate: .forgejo/workflows/renovate.yml (slug substituted; ⚠ SET THE CRON MINUTE — stagger table in wiki/infra/dependency-updates.md)"
+  say "renovate: .forgejo/workflows/renovate.yml (slug substituted; ⚠ SET THE CRON MINUTE — stagger it per app)"
 fi
 
 cat <<'CHECKLIST'
@@ -96,7 +100,7 @@ cat <<'CHECKLIST'
   [ ] ⚠ RUNTIME-SECURITY LAYER — NOT scaffolded by this script (it's app-boot
       code, harvested per-app from a reference app). A greenfield app is NOT
       spec-conformant without it, and skipping it is exactly how an app can ship to
-      prod with no CSP (hand-fixed after the fact; see convergence-log). Add, per spec
+      prod with no CSP. Add, per spec
       v1 §5:
         - app/Http/Middleware/SecurityHeaders.php — copy VERBATIM from
           standards/laravel/app/Http/Middleware/SecurityHeaders.php (X-Frame-Options
@@ -108,7 +112,7 @@ cat <<'CHECKLIST'
           A-06; the Reverb-aware connect-src needs no edit). Register it LAST in
           bootstrap/app.php's `$middleware->web(append: [...])` list — see a
           reference app's bootstrap/app.php for the exact seam.
-          Full doctrine: wiki/security/application-security.md (don't restate it
+          Full doctrine: your own application-security notes (don't restate it
           here).
         - app/Providers/AppServiceProvider.php — copy VERBATIM from
           standards/laravel/app/Providers/AppServiceProvider.php (byte-identical
@@ -164,14 +168,14 @@ cat <<'CHECKLIST'
       prompts; do NOT pass --stdin). Scope: read/write repository + read/write
       package.
   [ ] Renovate: set THIS APP's cron minute in .forgejo/workflows/renovate.yml
-      (stagger table in wiki/infra/dependency-updates.md — don't leave every app
+      (stagger the minute per app — don't leave every app
       on the same minute). One-time fleet setup (skip if the renovate-bot account
       + token already exist from a prior app): create the renovate-bot Forgejo
       user (full name + email set, or it can't commit), add it as a repo
       Collaborator (write), then `tea actions secrets create RENOVATE_TOKEN --repo
       your-org/<slug>` (prompts; do NOT pass --stdin) with its PAT — same value
       across every app repo, like CI_TOKEN. Full doctrine + PAT scopes:
-      wiki/infra/dependency-updates.md.
+      your own dependency-update notes.
   [ ] If vite.config.ts has `fonts: [bunny(...)]` (newer React starter kit): it
       FETCHES the font from fonts.bunny.net at BUILD TIME, which fails build-check
       (hermetic docker build can't reach the CDN). Vendor the woff2 + a @font-face

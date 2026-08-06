@@ -5,7 +5,7 @@ tags: [ spec, standard, testing, pest, phpunit, unit-tests, architecture-tests, 
 type: standard
 status: normative
 updated: 2026-07-10
-related: [ fleet-app-specification, testing-antipattern-catalog, laravel-engineering-standard, pest-testing, pest-architecture-testing, dependency-rules, laravel-architecture-manual, controllers, actions, repositories, query-builders, fleet-frontend-specification ]
+related: [fleet-app-specification, testing-antipattern-catalog, laravel-engineering-standard, pest-testing, pest-architecture-testing, dependency-rules, laravel-architecture-manual, controllers, actions, repositories, query-builders, fleet-frontend-specification]
 ---
 
 # Fleet Testing Doctrine — v1

@@ -1,5 +1,4 @@
 {
-    "_comment": "Fleet composer dependency hygiene (fleet-app-specification §2): composer-require-checker finds SYMBOLS USED BUT NOT REQUIRED (the composer-side twin of knip's unlisted-dependency check). Run via `composer require-check`. First run per app is measure-and-tune: add genuinely-runtime-provided symbols (PHP extension classes like Redis, PECL classes) to symbol-whitelist with a one-line reason — never whitelist a symbol a real composer package should provide; require the package instead.",
     "symbol-whitelist": [
         "Redis"
     ],
@@ -28,6 +27,7 @@
         "bcmath",
         "sodium",
         "random",
-        "zlib"
+        "zlib",
+        "date"
     ]
 }

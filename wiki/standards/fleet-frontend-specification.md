@@ -1,9 +1,9 @@
 ---
 title: Fleet Front-End Specification (v1 — mandated front-end mechanics)
-description: The normative Specification for how every fleet Inertia+React app is built on the front end — the mechanical/expressive split, component-architecture rules (no god components), React-19 & Inertia-v3 idioms, client state & data patterns, the appearance-independent testing strategy, dependency bands, and the standards/react convergence bundle + drift guard. Locks the front-end "how" (mechanics) to a single standard while leaving each app's look, motion, copy, and domain behavior deliberately free. Peer to [[fleet-app-specification]] (which owns versions/lint/CI/runtime); this page owns front-end architecture. Derived from a front-end audit + maintainer decisions; v1.1 folds in an adversarially-verified external best-practices research pass (the anti-over-adoption guardrail — Inertia already owns routing/query/forms — plus performance/CLS, vendor bundle-splitting, and SSR-per-surface); v1.2 adds the verified Inertia `optimistic()` mandate, the corrected React-Compiler/Vite-8 wiring (one app was silently off), and a second research pass (AssertableInertia over MSW, vitest-axe, build-time prerender for public surfaces).
+description: The normative Specification for how every fleet Inertia+React app is built on the front end — the mechanical/expressive split, component-architecture rules (no god components), React-19 & Inertia-v3 idioms, client state & data patterns, the appearance-independent testing strategy, dependency bands, and the standards/react convergence bundle + drift guard. Locks the front-end "how" (mechanics) to a single standard while leaving each app's look, motion, copy, and domain behavior deliberately free. Peer to [[fleet-app-specification]] (which owns versions/lint/CI/runtime); this page owns front-end architecture. Derived from a front-end audit + maintainer decisions; v1.1 folds in an adversarially-verified external best-practices research pass (the anti-over-adoption guardrail — Inertia already owns routing/query/forms — plus performance/CLS, vendor bundle-splitting, and SSR-per-surface); v1.2 adds the verified Inertia `optimistic()` mandate, the corrected React-Compiler/Vite-8 wiring (one app was silently off), and a second research pass (AssertableInertia over MSW, vitest-axe, build-time prerender for public surfaces); v1.3 reconciles §4 rendering around the SEO/GEO split — search crawlers render JS (head + JSON-LD suffices) but AI answer engines do not, so a paint-guarded semantic-body partial seeds the marketing copy into `#app` for GEO.
 tags: [ spec, standard, frontend, react, inertia, parity, mechanics, mandate ]
 type: standard
-updated: 2026-07-09
+updated: 2026-07-18
 related: [ fleet-app-specification, laravel-engineering-standard, pest-testing ]
 ---
 
@@ -28,8 +28,8 @@ the flexible axis for the front end.**
 - **Governs (the locked front-end mechanics):** the converged-file set (§1), component
   architecture & the no-god-components rule (§2), React-19 / Inertia-v3 idioms **and what NOT to
   bolt on** (§3), client state, data, performance & rendering (§4), the appearance-independent
-  test strategy (§5), front-end dependency bands (§6), and the `standards/react` bundle + drift
-  guard (§7).
+  test strategy (§5), front-end dependency bands (§6), the `standards/react` bundle + drift
+  guard (§7), and control density on a rendered screen (§8).
 - **The governing risk is over-adoption, not under-adoption.** A 2026 external best-practices
   review of this exact stack found that **Inertia already owns most concerns a conventional React
   SPA reaches for a library to solve** — client-side routing, request caching/prefetch/polling,
@@ -124,10 +124,11 @@ concurrent React-19 surface is currently at **zero** call sites fleet-wide.
 
 - **React Compiler — MUST** be enabled **and actually wired for Vite 8.** On `@vitejs/plugin-react`
   **v6 the inline `react({ babel })` option was removed** (oxc replaced Babel), so the compiler
-  **MUST** run via **`@rolldown/plugin-babel` + `reactCompilerPreset()` with `babel()` ordered BEFORE
-  `react()`**. *(Watch the trap: **an app on plugin-react v6 that keeps the old inline-`babel` form
-  has its compiler silently OFF**; apps still on plugin-react v5 where the inline form works **MUST**
-  adopt the v6 pattern when they bump.)* **Scope it right: the Compiler only fixes update / re-render
+  **MUST** run via **`@rolldown/plugin-babel` + `reactCompilerPreset()`**, ordered **`react()` then
+  `babel(...)`**. *(Watch the trap: **an app on plugin-react v6 that keeps the old inline-`babel` form
+  has its compiler silently OFF** — verify by checking that the built bundle references
+  `react/compiler-runtime`, not by reading the config; apps still on plugin-react v5 where the inline
+  form works **MUST** adopt the v6 pattern when they bump.)* **Scope it right: the Compiler only fixes update / re-render
   performance** — not bundle size, initial load, or list virtualization (those stay your job, §4) —
   and it does **not** fully replace `useMemo`/`useCallback` (valid escape hatches), so **don't
   reflexively strip existing memoization**.
@@ -208,20 +209,45 @@ only; the rest is still owned here:
   the whole session**. Reserve space for async/deferred content (fixed-dimension skeletons,
   width/height on images) — budget CLS across the session, not per page. Most acute on public surfaces.
 
-**Rendering / SEO for public surfaces — server-render the head + structured data, NOT the body.**
-Both runtime Inertia SSR (a Node process in the internet-facing
-pod conflicts with the hardened, shell-less runtime image, [[fleet-app-specification]] §5) **and**
-build-time prerender (the marketing content is **DB-backed + maintainer-editable**, so prerendered HTML
-would be empty or stale) are **rejected** — and, crucially, the audit found a full Blade/SSR **body**
-port is **not the answer either.** The right pattern is the **fleet
-standard:** server-render the **crawler-critical head + structured data** — `<title>`, meta
-description, canonical, robots, OpenGraph/Twitter, and **JSON-LD** (LocalBusiness, plus **FAQPage**
-where a page has FAQs, BreadcrumbList where nested) — from a **Blade partial fed by shared Inertia
-props** (`seo` / `jsonLd`), reading the same Eloquent models so it is always fresh and never lies
-after a maintainer edit. The visible **body stays the Inertia SPA** (Googlebot renders it); a full Blade
-body-port is a large rebuild for low marginal gain and is **NOT warranted** where the head +
-structured data are server-rendered. **Reference:** a `partials/seo.blade.php` partial fed by
-`App\Support\Seo\*`.
+**Rendering for public surfaces — the split: SEO crawlers render JS, GEO crawlers don't.** Two
+classes of crawler set two different requirements, and one pattern serves **both with no runtime
+SSR.** Runtime Inertia SSR (a Node process in the internet-facing pod conflicts with the hardened,
+shell-less runtime image, [[fleet-app-specification]] §5), build-time prerender (marketing content is
+**DB-backed + maintainer-editable**, so a prerender goes stale), and a **full-fidelity Blade/SSR body
+port** (a large rebuild for low marginal gain) are all **rejected.** What each crawler class needs:
+
+- **Search crawlers execute JavaScript.** Rendering the SPA body is enough for them; only the
+  **crawler-critical head + structured data** must be server-rendered: `<title>`, meta description,
+  canonical, robots, OpenGraph/Twitter, and **JSON-LD** (LocalBusiness, plus **FAQPage** where a page
+  has FAQs, BreadcrumbList where nested) — from a **Blade partial fed by shared Inertia props**
+  (`seo` / `jsonLd`), reading the same Eloquent models so it never lies after a maintainer edit.
+  **Reference:** a `partials/seo.blade.php` partial fed by `App\Support\Seo\*`.
+- **AI answer-engine crawlers do NOT execute JavaScript** (GPTBot, ClaudeBot, PerplexityBot,
+  Meta-ExternalAgent). A CSR-only body is invisible to them, which makes the app **uncitable**. Where
+  being cited by answer engines matters — any public marketing lander — the **body copy MUST also
+  live in the raw HTML**, but as a **lightweight Blade semantic-body partial** (plain semantic HTML
+  from the same `marketing.*` lang lines), **NOT** a full SSR rebuild. Seed it **into `#app`**,
+  mirroring `<x-inertia::app />` (the `data-page` script + the `#app` div); with **no
+  `data-server-rendered`** attribute Inertia `createRoot()`-**replaces** it for humans, so it never
+  hydrates and there is no markup-parity constraint.
+
+**Guard the paint.** Seeded into `#app`, the partial **paints unstyled during the bundle-load
+window** before `createRoot()` replaces it — an "LLM copy flicker". Guard it at the **top of the
+partial**:
+
+```blade
+<style>#app > main { display: none }</style>
+<noscript><style>#app > main { display: block }</style></noscript>
+```
+
+`display:none` removes it from **paint and layout**; crawlers read raw HTML and never apply CSS, so
+GEO legibility is unchanged; `<noscript>` restores it for JS-less humans; React clears `#app` on
+mount, so the guard evaporates for human visitors. **MUST NOT** color-match text to the background
+instead — that leaves ghost layout and reads as **cloaking**. A Pest test **MUST** pin the guard's
+presence on the lander and its absence off it.
+
+The visible, high-fidelity **body stays the Inertia SPA** — the semantic partial is a minimal
+GEO/legibility seed, never a second rendering of the real page.
 
 ---
 

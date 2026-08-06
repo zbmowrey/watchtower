@@ -7,13 +7,14 @@
 # Pattern: ignore everything inside the folder, then re-include its .gitkeep.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Withheld: security posture / risk register (would advertise weaknesses)
+# Security: DOCTRINE ships (the layer model, the IR template); POSTURE does not.
+# A page describing which controls a running system has is also a page describing
+# which it lacks, and genericizing the names does not change that. Keep filled-in
+# copies, and the risk register, in a private clone.
 /wiki/security/*
-!/wiki/security/.gitkeep
-
-# Withheld: growth / pricing / revenue / conversion strategy
-/wiki/growth/*
-!/wiki/growth/.gitkeep
+!/wiki/security/_index.md
+!/wiki/security/defense-in-depth-model.md
+!/wiki/security/incident-response-template.md
 
 # Withheld: product roadmaps (incl. client-owned apps)
 /wiki/roadmaps/*

@@ -1,20 +1,20 @@
 ---
 title: Tending the Garden — watchtower self-maintenance charter
-description: How Claude keeps watchtower ITSELF healthy as it grows — the repo-wide self-maintenance mandate (standing authority, single-source discipline, law-vs-news, keep-the-core-lean, where-new-things-go, run-the-guards, two-memories). Generalizes the wiki mandate to the whole repo (CLAUDE.md, apps.json, skills, standards, logs).
+description: How Claude and Codex keep watchtower ITSELF healthy as it grows — the repo-wide self-maintenance mandate (standing authority, single-source discipline, law-vs-news, keep-the-core-lean, where-new-things-go, run-the-guards, two-memories). Generalizes the wiki mandate to the whole repo (agent guides, skills, standards, logs).
 tags: [meta, maintenance, garden, governance, conventions]
 type: meta
 status: normative
 updated: 2026-06-27
-related: [wiki-conventions, wiki-tool]
+related: [wiki-conventions, wiki-tool, agent-runtime-parity]
 ---
 
 # Tending the Garden
 
 This repo is the watchtower — and like any garden it overgrows if untended. The
 [[wiki-conventions]] cover one bed (the wiki). This page is the **whole-garden
-charter**: how Claude keeps the *entire* repo — `CLAUDE.md`, `apps.json`, the skills,
+charter**: how agents keep the *entire* repo — `CLAUDE.md`, `AGENTS.md`, the skills,
 the `standards/` artifacts, the wiki, the logs — authoritative, lean, and
-single-sourced as it grows. CLAUDE.md carries the reflex subset; this page
+single-sourced as it grows. The agent entry files carry the reflex subset; this page
 owns the rules.
 
 You have **standing authority to tend the garden without asking.** Improve the repo as
@@ -54,17 +54,19 @@ change is reversible).
    ≤10, coverage `--min=80`, type-coverage `--min=95`, jscpd 10) live ONLY in the
    config files CI and `scaffold/apply.sh` consume (`standards/laravel/configs/`).
    Prose links to the file; it never restates the number.
-9. **Machine data has one machine source.** The fleet roster lives once, in
-   `apps.json` (read via `bin/fleet`). The justfile, the statusline hook, and the
-   `/project` arg-hint all derive from it or are linted against it — never hand-copied.
+9. **Machine data has one machine source.** If you keep a project roster, it lives
+   once, in one machine-readable file. Everything that needs it (task runner, status
+   line, command arg-hints) derives from that file or is linted against it, never
+   hand-copied.
 
 ## Where new things go
 
-- **A new project** → one entry in `apps.json` + one `wiki/projects/<slug>.md` leaf.
-  The justfile, statusline, arg-hint, and `projects/_index` then derive automatically.
+- **A new project** → one entry in your roster file + one `wiki/projects/<slug>.md`
+  leaf. Everything that derives from the roster then updates automatically.
 - **A new skill** → one `SKILL.md` whose description the harness discovers. No
-  CLAUDE.md edit. Skills are procedure — they inject the relevant wiki page at runtime
-  rather than hardcoding the roster, a version, or a date (`skill-lint.sh` enforces).
+  agent entry-file edit. Skills are procedure — they inject the relevant wiki page
+  at runtime rather than hardcoding the roster, a version, or a date
+  (`bin/skill-lint` enforces).
 - **A new standard threshold** → the value in `standards/laravel/configs/` (CI
   consumes it) + one sentence in [[fleet-app-specification]] (the rule).
 - **A new concept** → one leaf under exactly one domain directory; the hub regenerates.
@@ -79,12 +81,10 @@ These defend the invariants so the garden doesn't rely on diligence:
   matches its domain directory.
 - `bin/wiki index` — regenerates each hub's navigation from leaf frontmatter (hubs
   hold no hand-maintained fact lists, so they can't rot).
-- `bin/fleet check` — `apps.json` is valid and its consumers are in sync.
-- `.claude/hooks/skill-lint.sh` — no PR numbers / dates / hardcoded rosters in skills.
+- `bin/skill-lint` — no PR numbers / dates / hardcoded rosters in agent skills.
 
-Run them all at once with **`just check`** (or `bin/check`) — the hard checks
-(frontmatter, hubs, `apps.json`) fail the run; the soft ones (dangling links, skill
-rot) only warn. The **`.githooks/pre-commit`** hook runs it on every commit; activate
+Run them all at once with **`bin/check`**: the hard checks (frontmatter, hubs, skill
+rot) fail the run; the soft ones (dangling links) only warn. The **`.githooks/pre-commit`** hook runs it on every commit; activate
 once per clone with `git config core.hooksPath .githooks`. Run them after edits; don't
 leave a guard red. A light periodic sweep only needs to
 confirm `type`/`status` are honestly assigned and `status: living` pages that are

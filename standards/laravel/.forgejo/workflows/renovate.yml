@@ -2,15 +2,15 @@ name: renovate
 # ─────────────────────────────────────────────────────────────────────────────
 # FLEET-STANDARD RENOVATE RUNNER TEMPLATE. Copy to <app>/.forgejo/workflows/renovate.yml,
 # replace __APP__ with the repo slug (e.g. acme), and set THIS APP'S cron minute from the
-# stagger table in wiki/infra/dependency-updates.md (do not copy the same minute to every
+# your own stagger table (do not copy the same minute to every
 # app — see below). Pairs with renovate.json (copied to the app repo root — the per-repo
 # behavior config, same bundle). Full doctrine, why Forgejo Actions was picked over a k8s
-# CronJob for this fleet, and the bot-account/token setup: wiki/infra/dependency-updates.md.
+# CronJob here, plus the bot-account/token setup, are documented in your own infra notes.
 #
 # Runs the OFFICIAL renovate/renovate image directly as the job container — this is
 # deliberately NOT a `uses:` marketplace action (the way most Renovate-on-CI guides do
 # it). This forge 401s a `uses:` action's own anonymous-git self-fetch
-# (REQUIRE_SIGNIN_VIEW=true — see wiki/infra/forgejo-ci.md), the same reason ci.yml
+# (REQUIRE_SIGNIN_VIEW=true on a private forge), the same reason ci.yml
 # hand-rolls its checkout. Renovate needs NO checkout step at all, unlike ci.yml/
 # deploy.yml: it clones and pushes to the target repo itself over the Forgejo API using
 # RENOVATE_TOKEN, so this workflow really is just "pull the image, run one command."
@@ -22,7 +22,7 @@ name: renovate
 on:
   schedule:
     # Mondays 14:00 UTC is __APP__'s slot in the fleet stagger table (see
-    # wiki/infra/dependency-updates.md) — CHANGE THE MINUTE per that table so five
+    # your stagger table) — CHANGE THE MINUTE per that table so several
     # apps' Renovate PRs (and the CI they trigger) don't land on the shared runner
     # at the same moment. Do not change the day without updating the table too.
     - cron: '0 14 * * 1'
@@ -63,7 +63,7 @@ jobs:
 #      its profile (Renovate refuses to commit as an identity with no display name);
 #   2. `renovate-bot` is added as a Collaborator (write) on THIS repo;
 #   3. its PAT (repo rw, issue rw, user read, organization read — see
-#      wiki/infra/dependency-updates.md for the exact scope table) is stored as THIS
+#      your own scope table for the exact permissions) is stored as THIS
 #      repo's RENOVATE_TOKEN secret: `tea actions secrets create RENOVATE_TOKEN --repo
 #      your-org/<slug>` (bare command — it PROMPTS; do NOT pass --stdin, same gotcha as
 #      CI_TOKEN). The token value is the same renovate-bot PAT across every app repo,

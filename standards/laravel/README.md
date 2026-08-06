@@ -10,8 +10,8 @@ integration-test service container — **never** the tool set.
 > **The rule of record is the spec, not this README.** The single mandated value for
 > every concern is [`fleet-app-specification`](../../wiki/standards/fleet-app-specification.md)
 > (`bin/wiki inject --page fleet-app-specification`); the *why* is
-> [`laravel-engineering-standard`](../../wiki/standards/laravel-engineering-standard.md); the
-> dated rollout history is `convergence-log`. These
+> [`laravel-engineering-standard`](../../wiki/standards/laravel-engineering-standard.md); keep your
+> own dated rollout history in `wiki/logs/`. These
 > files ARE the enforced values — when a number here and the spec disagree, the spec
 > wins and these files are brought to it. CI mechanics:
 > `forgejo-ci`. Harvested from the reference app.
@@ -33,6 +33,7 @@ configs/
   commitlint.config.js  # Conventional Commits ruleset (extends config-conventional)
   vendor-bin/phpmd/composer.json   # phpmd isolated via bamarni (dep tree can't clash with app)
   bin/check-bundle-size.mjs        # perf gate (ci.yml tests job); MUST calibrate BUDGETS_KB
+  bin/compress-assets.mjs          # perf: bakes .br/.gz sidecars next to the built assets; copy VERBATIM + chain off `npm run build`. Needs the matching `file_server { precompressed br gzip }` in docker/Caddyfile or it is dead weight
   bin/baseline-guard.sh           # ratchet gate (ci.yml static job) — fails if a phpstan/phpmd/psalm baseline GREW vs merge-base
   tests/js/vitest.setup.ts         # Vitest setup (referenced by vitest.config.ts)
   composer.fragment.json           # require-dev (+psalm trio) + scripts (psalm-taint, local-only mutation) + extra + allow-plugins to MERGE
@@ -40,11 +41,13 @@ configs/
   logging.php                      # config/logging.php golden — stderr channel + LOG_STDERR_FORMATTER hook; prod = stderr JSON, file drivers forbidden (spec §5 / a documented tradeoff)
   logging.env.fragment             # .env.example logging block — local-dev file default + the prod stderr/JSON values (commented)
   sentry.env.fragment              # .env.example SENTRY_* block — error tracking OFF locally (empty DSN), conservative sampling; DSN via env only (spec §5, sentry/sentry-laravel require is in composer.fragment.json)
-  renovate.json                    # dependency-update config (composer+npm, weekly digest, majors gated, automerge OFF) — wiki/infra/dependency-updates.md
+  renovate.json                    # dependency-update config (composer+npm, weekly digest, majors gated, automerge OFF)
   composer-require-checker.json    # deps hygiene half 1 (spec §2, 2026-07-10): symbols used but not required — `composer require-check` (CI static step); tune symbol-whitelist per app WITH reasons
   composer-unused.php              # deps hygiene half 2: packages required but not used — `composer unused` (CI static step); every NamedFilter carries a reason
   rector.php                       # modernization engine (spec §2): LOCAL ONLY, never a CI gate — `composer rector` (preview) / `rector:fix`; run before PHP/framework bumps
-  heartbeat.console.fragment.php   # spec §5 scheduler dead-man switch — merge into routes/console.php + config/services.php; ping URL from SCHEDULE_HEARTBEAT_URL (k8s values) — wiki/infra/fleet-alerting.md
+  heartbeat.console.fragment.php   # spec §5 scheduler dead-man switch — merge into routes/console.php + config/services.php; ping URL from SCHEDULE_HEARTBEAT_URL (injected by your deploy)
+  seeding.php                      # config/seeding.php golden — env-driven default-user credentials (control-administrators + operator + app planes) read via config so seeders never touch env() (spec §5 three-tier identity planes)
+  seeding.env.fragment             # .env.example seeding block — CONTROL_DEFAULT_/OPERATOR_DEFAULT_/APP_DEFAULT_ pairs; local `password`, prod via k8s Secret; blank pair = plane not seeded
   bin/migration-safety.sh          # spec §6 expand/contract gate (ci.yml static job) — added migrations with destructive DDL need an `// expand-contract:` marker
 .husky/pre-commit / pre-push / commit-msg   # the local gate + Conventional-Commits check (all run inside the vite container)
 tests/Architecture/                # the shared arch-test suite (design controls, cquality ⑥/⑦)
@@ -53,9 +56,47 @@ tests/Architecture/                # the shared arch-test suite (design controls
   README.md                        # tier→namespace matrix + carve-out policy (files MUST end in Test.php)
 app/Providers/AppServiceProvider.php  # §5 runtime guardrails — BYTE-IDENTICAL fleet-wide (arch-drift-locked); app bindings live in a separate per-domain provider
 app/Http/Middleware/SecurityHeaders.php  # §5 HTTP security MUST — nonce CSP + HSTS/X-Frame-Options/etc; golden reference, NOT byte-identical (2 marked per-app tune points — see file docblock + application-security.md)
+app/Http/Requests/FormRequest.php  # §5 identity planes — base FormRequest overriding user():?User so a bare $request->user() stays typed once a 2nd auth provider (admin) exists; carve-out from the "form requests are final" arch rule
+app/Http/Middleware/IdempotencyKey.php  # API-307 Idempotency-Key for costly POSTs (sends, payments) — golden reference, 1 tune point (acting-principal resolution); contract → wiki idempotency-keys
+database/seeders/AdministratorSeeder.php    # §5 control-plane RBAC baseline (guard 'admin', /control) + env-driven default administrator (CONTROL_DEFAULT_*) = provider (DP) platform staff, idempotent + inert-when-blank — MANDATORY every app
+database/seeders/OperatorSeeder.php         # §5 app-admin plane RBAC baseline (guard 'operator', /admin) + env-driven default operator (OPERATOR_DEFAULT_*) = client app staff, idempotent + inert-when-blank — per-app-need (distinct external client)
+database/seeders/DefaultAppUserSeeder.php   # §5 env-driven default app user (APP_DEFAULT_*, `web` guard), plain email-verified consumer, idempotent + inert-when-blank
 .forgejo/workflows/ci.yml          # the canonical 2-job (static/tests) gate template
-.forgejo/workflows/renovate.yml    # scheduled dependency-update runner (Forgejo Actions, official renovate/renovate image) — wiki/infra/dependency-updates.md
+.forgejo/workflows/renovate.yml    # scheduled dependency-update runner (Forgejo Actions, official renovate/renovate image)
+.trivyignore.yaml                  # deploy-gate exception REGISTER (not a mute button): base-image CVEs compiled into the FrankenPHP binary that we cannot fix from an app repo. Path-scoped, each with a non-exploitability statement + an expired_at that re-blocks the deploy. DELIVERY CONTRACT below — the file alone does nothing.
 ```
+
+### The `.trivyignore.yaml` delivery contract
+
+There is no `deploy.yml` in this bundle (every app's differs), so the register's
+*delivery* is hand-wired per repo — and it has silently unwired itself four times
+across the fleet. Copying the file is the easy half. The scan step must also:
+
+1. **Pipe on STDIN, never `-v`.** Trivy runs as a dind sibling, so a bind mount
+   resolves against the dind daemon's filesystem and arrives empty.
+2. **Use `docker run -i`.** Without it `cat` reads EOF and writes a **zero-byte**
+   ignorefile — valid YAML, so the scan runs with *no exceptions* and reports
+   nothing unusual.
+3. **Qualify the redirect for the step's cwd.** Repos that `cd ..` back out of
+   `src/` need `< src/.trivyignore.yaml`; acme's monorepo scans from `src/api`
+   and needs `< ../.trivyignore.yaml`.
+4. **Assert the register arrived.** Layers 1–3
+   all fail *silently*, so don't rely on remembering them:
+
+   ```sh
+   cat > /tmp/trivyignore.yaml
+   if [ ! -s /tmp/trivyignore.yaml ]; then
+     echo "FATAL: .trivyignore.yaml arrived EMPTY — the exception register is unwired." >&2
+     exit 1
+   fi
+   echo "trivy: loaded $(wc -c < /tmp/trivyignore.yaml) bytes of exceptions"
+   ```
+
+**Verifying it works means verifying that removing it changes the outcome.** Run
+the scan with the register and again without `--ignorefile`; if the excepted IDs
+don't reappear in the second run, the mechanism was never wired. A suppression
+you cannot observe suppressing is indistinguishable from one that does nothing.
+Full incident history → [[trivy-deploy-gate-base-image-cves]] in the wiki.
 
 > **This bundle implements [`fleet-app-specification`](../../wiki/standards/fleet-app-specification.md) (v1).**
 > The spec is the requirement of record; this is the reference apps copy from. Raised to v1
@@ -68,9 +109,8 @@ app/Http/Middleware/SecurityHeaders.php  # §5 HTTP security MUST — nonce CSP 
 > **`app/Http/Middleware/SecurityHeaders.php`** (the §5 HTTP-security MUST — nonce-based CSP,
 > HSTS, X-Frame-Options, etc.; a golden reference with two marked per-app tune points, NOT
 > byte-identical — see the file's docblock and `application-security`).
-> This closes the gap that let an app reach prod without CSP in the first
-> place (hand-fixed after the fact; verified live-conformant since — see
-> `convergence-log`) — but until now the *bundle itself*
+> This closes the gap that lets an app reach prod without a CSP in the first
+> place — but until now the *bundle itself*
 > still had no artifact to copy for the *next* greenfield app. The one **runtime-security piece
 > this bundle still does NOT generate** — and a greenfield app MUST add by hand — is
 > **`Http::preventStrayRequests()`** in the test bootstrap; see the `scaffold/apply.sh`
@@ -226,7 +266,7 @@ reference app) and lives in the app repo + the `your-org/k8s` repo, **not here**
 - k8s repo: `infra/<app>/` Helm chart + `infra/apps/<app>.yaml` ArgoCD Application
   + `infra/cnpg/cluster/init-<app>-database.yaml`.
 
-See `wiki/infra/deploy-image.md`. A lean app
+See your own deploy-image notes. A lean app
 with no reverb/redis/s3 makes the
 **simplest reference**. `scaffold/apply.sh` does NOT generate
 these — adapt a reference app's.
@@ -258,19 +298,32 @@ merge-base). Per tool:
   pass now; the unused files/exports are a burn-down list — re-enable rules as cleaned.
 - **rector is NOT in the standard** — it conflicts with the phpstan L8 gate; phpstan L8 +
   strict-rules + Pint cover the ground. No `rector.php`, `rector/rector` dep, or rector CI
-  step on any app. (How it was removed: see the wiki's convergence-log.)
+  step on any app.
+
+## Opt-in bundles — capabilities, not ratchets
+
+`configs/` is the mandatory bundle. Alongside it sit **opt-in** bundles: patterns proven
+on one app and packaged so another can adopt them deliberately, each with its own README
+stating what it costs as well as what it buys. They are NOT convergence targets, and no
+conformance check looks for them.
+
+- **`edge-cache/`** — serve an app's public marketing pages from the CDN (`ThemeScript` +
+  `PubliclyCacheable` + the matching CDN rule). Buys edge-served first paint for anonymous
+  visitors; costs `Vite::prefetch`. Worth it for a real marketing surface, a straight loss
+  for an app that is almost entirely behind auth. Requires an `arch-drift.allow` entry: the
+  nonce removal diverges the byte-locked `AppServiceProvider`.
 
 ## Divergence policy
 
 Allowed to differ **only**: which workloads deploy (reverb/worker/scheduler),
 which `services:` an app's *integration* tests need (redis for Valkey, s3/minio
-for MinIO), the Browser/E2E job (opt-in, app-specific), and business logic.
+for MinIO), the Browser/E2E job (opt-in, app-specific), an adopted opt-in bundle
+above (with its documented `arch-drift.allow` entry), and business logic.
 Everything in `configs/` is identical fleet-wide.
 
 ## Convergence history
 
-The dated per-app rollout — who adopted what, when, the phpmd baselines, the parity
-snapshots, the per-tool CI restructure — is `status: living` news. It lives in the
-wiki's `convergence-log`, not here. This README
-stays a timeless apply-guide; the forward burndown is
-`fleet-variance-backlog`.
+The dated per-app rollout — who adopted what and when, the baselines, the parity
+snapshots, the per-tool CI restructure — is `status: living` news. Keep it in your own
+`wiki/logs/`, not here. This README stays a timeless apply-guide; track the forward
+burndown alongside it as a per-app backlog page.

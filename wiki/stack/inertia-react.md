@@ -35,6 +35,31 @@ Apps add libraries as they need them — e.g. `zustand` for state, `@headlessui/
 - **HMR** behind Sail: see local dev ports for the `vite.config.ts` server/hmr
   setup that makes hot reload work through the container.
 
+## View transitions (Inertia 3.6+) — three traps
+
+Inertia performs the component swap inside `document.startViewTransition` when a visit
+carries `viewTransition`, so page transitions are declarative. Enable app-wide through
+`createInertiaApp({ defaults: { visitOptions } })`, which Inertia calls for **every** visit.
+
+1. **`<Link>` passes `viewTransition: false` on every click** — that is the React
+   component's own prop default, not caller intent. Treating a falsy value as an opt-out
+   therefore disables the feature on every link in the app, silently. Honor only a
+   **truthy** value as an opt-in and decide the rest from the visit's shape. Nothing is
+   lost: everywhere Inertia forces `false` itself (prefetches, the instant-swap follow-up)
+   the visit is also marked `async`/`prefetch`/`preserve*`.
+2. **Elect visits deliberately.** Partial reloads (`only`/`except`), `replace`, and
+   `preserve*` visits are how a tool page re-queries itself (filters, sliders). A global
+   transition on those flashes the whole viewport on every slider nudge.
+3. **`document.visibilityState === 'hidden'` skips the transition entirely** — an explicit
+   guard in Inertia's `swap()`. This makes browser-driven verification look like a total
+   failure: the driven tab is backgrounded, so nothing fires. Foreground the tab first,
+   then act. Applies to *any* `startViewTransition`-gated behavior, not just Inertia's.
+
+Scope custom `::view-transition-old/new(root)` rules behind a state class on `<html>` if
+anything else on the site drives its own root transition (e.g. a theme toggle's circular
+reveal) — the pseudo-element rules are global otherwise. Kill them under
+`prefers-reduced-motion` in CSS rather than JS, so motion gating keeps one owner.
+
 ## Testing
 
 - Component/unit tests: Vitest, or via the PHP feature layer for page rendering.

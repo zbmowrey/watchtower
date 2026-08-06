@@ -3,7 +3,7 @@ title: Wiki Conventions
 description: How the watchtower wiki is structured, the frontmatter contract, and the self-organizing rules.
 tags: [meta, wiki, conventions]
 type: meta
-updated: 2026-06-27
+updated: 2026-07-30
 related: [wiki-tool]
 ---
 
@@ -54,6 +54,9 @@ related: [some-slug, another-slug]   # optional; slugs of related pages
   filename without `.md` (or the slugified title) — e.g. `acme`,
   `deploy-flow`.
 - Standard markdown links to other `.md` files are followed too.
+- **Hubs are path-addressed, not slug-addressed**: a `some-dir` wikilink does NOT resolve
+  to `some-dir/_index.md`. Link a hub with a markdown path
+  (`[the manual](../stack/laravel-architecture/_index.md)`) or link a representative leaf.
 - Link liberally. A forward link to a page that doesn't exist yet is fine — it
   marks something worth writing later.
 
@@ -65,7 +68,7 @@ Each top-level directory is a **domain**; a page's `type` matches its domain.
 wiki/
   _index.md                 ROOT hub — index of the domain hubs (generated)
   meta/                     how the wiki/tooling itself works (conventions, tool)
-  projects/                 one page per project (acme, ...); roster = apps.json
+  projects/                 one page per project (acme, ...); the roster lives outside the wiki
   infra/                    k8s, deploy flow, CI, local ports
   stack/                    shared tech (laravel-sail, pest, inertia-react, arch manual)
   security/                 the security & compliance corpus

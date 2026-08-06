@@ -2,7 +2,7 @@ name: ci
 # ─────────────────────────────────────────────────────────────────────────────
 # FLEET-STANDARD CI TEMPLATE.  Copy to <app>/.forgejo/workflows/ci.yml and
 # replace __APP__ with the repo slug (e.g. acme). This is the same gate on every
-# Laravel sibling — see wiki/infra/forgejo-ci.md + wiki/stack/laravel-engineering-standard.md.
+# Laravel sibling — see wiki/standards/laravel-engineering-standard.md.
 #
 # Runs inside the fleet image git.example.com:3000/your-org/ci-php (the stock runner
 # images have no PHP). Checkout is hand-rolled — this forge runs
@@ -24,6 +24,17 @@ name: ci
 # fails. Steps are ordered fastest→slowest for log readability ONLY (wall-clock is
 # the sum regardless — they share one job). Mutation (MSI) and Browser/E2E are
 # SEPARATE optional jobs, not part of this gate.
+#
+# ── Path-scoped runs ─────────────────────────────────────────────────────────────
+# Each job opens with a `detect changes` step (bin/ci-detect-changes.sh — copy
+# configs/bin/ci-detect-changes.sh) that diffs the PR against its merge-base and
+# writes boolean flags to $GITHUB_ENV; every step below then guards itself with
+# `if: env.<flag>`, so a PHP-only PR skips the JS tests (and vice-versa) and a
+# docs-only PR skips everything. We gate STEPS, not jobs: the job always runs to
+# completion and reports its required-check context GREEN even when every check
+# inside it is skipped. The detector is fail-safe — any uncertainty (manual run,
+# no merge-base, git error) runs everything, and a .forgejo/ or bin/ change
+# forces a full run.
 # ─────────────────────────────────────────────────────────────────────────────
 on:
   pull_request:
@@ -48,18 +59,29 @@ jobs:
           CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           REF="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-          git clone --depth 1 --branch "$REF" "http://oauth2:${CI_TOKEN}@git.example.com:3000/your-org/__APP__.git" .
+          git clone --depth 100 --branch "$REF" "http://oauth2:${CI_TOKEN}@git.example.com:3000/your-org/__APP__.git" .
+          git fetch --quiet --depth 100 origin main:refs/remotes/origin/main || true
+      - name: detect changes
+        # Writes php/js/composer/… + per-step flags to $GITHUB_ENV. Fail-safe:
+        # any uncertainty leaves every flag true (run everything).
+        run: sh bin/ci-detect-changes.sh
       - name: composer install
+        if: ${{ env.static_setup_composer == 'true' }}
         run: composer install --no-interaction --no-progress --prefer-dist
       - name: npm ci
+        # needed by the JS tools AND by jscpd (an npm-provided binary that scans app/).
+        if: ${{ env.static_setup_npm == 'true' }}
         run: npm ci --no-audit --no-fund
-      - name: app key + Wayfinder types
-        # Wayfinder routes/actions (gitignored) are needed for eslint/tsc/knip to
-        # resolve @/routes & @/actions; --with-form matches vite formVariants:true.
+      - name: app key
+        if: ${{ env.static_setup_composer == 'true' }}
         run: |
           cp .env.example .env
           php artisan key:generate --ansi
-          php artisan wayfinder:generate --with-form
+      - name: Wayfinder types
+        # Wayfinder routes/actions (gitignored) are needed for eslint/tsc/knip to
+        # resolve @/routes & @/actions; --with-form matches vite formVariants:true.
+        if: ${{ env.static_js == 'true' }}
+        run: php artisan wayfinder:generate --with-form
       # Static checks — ONE STEP PER TOOL (see header). `if: ${{ !cancelled() }}`
       # = run-all: every step runs even after an earlier failure; job red if any
       # fails. Order is fastest→slowest (indicative; cosmetic under run-all).
@@ -70,40 +92,40 @@ jobs:
       # the fleet SAST). Mutation (MSI) + Browser/E2E stay SEPARATE local/optional
       # jobs (mutation runs minutes; browser needs Chromium).
       - name: composer-normalize
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_composer == 'true' }}
         run: composer normalize:check
       - name: knip
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_js == 'true' }}
         run: npm run knip
       - name: jscpd (dup:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: npm run dup:check
       - name: pint (lint:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: composer lint:check
       - name: npm audit
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_npm_audit == 'true' }}
         run: npm audit --omit=dev --audit-level=high
       - name: phpmd (md)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: composer md
       - name: composer audit
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_composer == 'true' }}
         run: composer audit --abandoned=report
       - name: composer-require-checker (require-check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_composer == 'true' }}
         run: composer require-check
       - name: composer-unused (unused)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_composer == 'true' }}
         run: composer unused
       - name: prettier (format:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_prettier == 'true' }}
         run: npm run format:check
       - name: tsc (types:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_js == 'true' }}
         run: npm run types:check
       - name: larastan (stan)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         # Persistent result cache on the runner's /phpstan-cache volume, scoped
         # per project + target branch (copy configs/phpstan.ci.neon, replace
         # __APP__). Warm runs re-analyse only changed files + dependents —
@@ -114,17 +136,17 @@ jobs:
           mkdir -p /phpstan-cache/__APP__/main
           composer stan -- -c phpstan.ci.neon
       - name: eslint (lint:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_js == 'true' }}
         run: npm run lint:check
       - name: psalm (taint)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: composer psalm-taint
       - name: baseline ratchet guard (spec §2 — a baseline may only shrink)
         # Fails if any static-analysis baseline (phpstan/phpmd/psalm) GREW vs the PR's
         # merge-base — i.e. it was re-generated to absorb new findings. Deepen enough
         # history for the merge-base; the guard falls back to the main tip otherwise,
         # and exits non-zero (never silently green) if main isn't reachable.
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: |
           git fetch --quiet --deepen=100 origin "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" || true
           git fetch --quiet --depth=100 origin main:refs/remotes/origin/main || true
@@ -133,11 +155,11 @@ jobs:
         # Destructive DDL in an ADDED migration needs an `// expand-contract:`
         # marker — a PreSync migrate can't be un-migrated by a tag revert.
         # Reuses the origin/main ref fetched by the baseline-guard step above.
-        if: ${{ !cancelled() }}
-        run: sh bin/migration-safety.sh origin/main
+        if: ${{ !cancelled() && env.static_php == 'true' }}
+        run: bash bin/migration-safety.sh origin/main
       - name: notify alerts channel on failure
         # Red CI posts to your alerts Discord channel (a CI sensor net —
-        # wiki/infra/fleet-alerting.md). Guard is in the script, not the `if:`
+        # your alerting runbook). Guard is in the script, not the `if:`
         # (step-level env inside `if:` is unproven on act_runner): with the
         # DISCORD_ALERT_WEBHOOK user-level Actions secret unset the step exits 0,
         # so the whole thing is inert until the secret exists. `|| true` — a
@@ -200,19 +222,34 @@ jobs:
           CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           REF="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
-          git clone --depth 1 --branch "$REF" "http://oauth2:${CI_TOKEN}@git.example.com:3000/your-org/__APP__.git" .
+          git clone --depth 100 --branch "$REF" "http://oauth2:${CI_TOKEN}@git.example.com:3000/your-org/__APP__.git" .
+          git fetch --quiet --depth 100 origin main:refs/remotes/origin/main || true
+      - name: detect changes
+        run: sh bin/ci-detect-changes.sh
       - name: composer install
+        # needed for pest AND for the build: the vite wayfinder plugin shells out
+        # to `php artisan wayfinder:generate`, so the build needs vendor/ + the app
+        # even on a JS-only PR. tests_build ⊇ tests_php, so it covers both.
+        if: ${{ env.tests_build == 'true' }}
         run: composer install --no-interaction --no-progress --prefer-dist
       - name: app key
+        # .env/APP_KEY is needed by pest AND by the wayfinder plugin the build runs.
+        if: ${{ env.tests_build == 'true' }}
         run: |
           cp .env.example .env
           php artisan key:generate --ansi
+      - name: npm ci
+        # node_modules is needed for the build AND for vitest.
+        if: ${{ env.tests_setup_npm == 'true' }}
+        run: npm ci --no-audit --no-fund
       - name: build frontend (Vite manifest + Wayfinder — feature tests render Inertia pages)
-        run: |
-          npm ci --no-audit --no-fund
-          npm run build
+        # produces public/build/manifest.json (pest feature tests need it) and the
+        # bundle the size budget measures; the vite wayfinder plugin also (re)generates
+        # the @/routes & @/actions TS here (needs vendor/ + .env from the steps above).
+        if: ${{ env.tests_build == 'true' }}
+        run: npm run build
       - name: bundle size budget (PERF — copy configs/bin/check-bundle-size.mjs + calibrate BUDGETS_KB per app)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.tests_bundle == 'true' }}
         run: npm run bundle:check
       # Test tools — ONE STEP PER TOOL (run-all via if:!cancelled), same rationale
       # as `static`: a failing pest run no longer hides type-coverage / vitest.
@@ -232,7 +269,7 @@ jobs:
       #   3. compose.yaml pgsql needs command max_locks_per_transaction=512 so
       #      local parallel runs don't hit SQLSTATE 53200.
       - name: pest + coverage (parallel)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.tests_php == 'true' }}
         # Retry-once absorbs the known transient coverage-bootstrap flake in the
         # ci-php image (the step fails only if BOTH attempts fail) — every working
         # fleet app carries this; the template was missing it, which
@@ -244,10 +281,10 @@ jobs:
           php -d memory_limit=-1 artisan test --parallel --testsuite=Unit,Feature,Architecture --coverage --min=80 \
             || php -d memory_limit=-1 artisan test --parallel --testsuite=Unit,Feature,Architecture --coverage --min=80
       - name: type-coverage
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.tests_php == 'true' }}
         run: composer type-coverage
       - name: vitest
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.tests_js == 'true' }}
         run: npm run test
       - name: notify alerts channel on failure
         # Same contract as the static job's notify step (see comment there).
@@ -266,7 +303,7 @@ jobs:
 #   vitest and add a `setup` job that builds vendor+node_modules+public/build once
 #   and shares them as an artifact. NOTE: composer + npm now have PERSISTENT caches
 #   (the runner mounts forgejo-composer-cache / forgejo-npm-cache via
-#   COMPOSER_CACHE_DIR / NPM_CONFIG_CACHE — see wiki/infra/forgejo-ci.md), so a
+#   COMPOSER_CACHE_DIR / NPM_CONFIG_CACHE on the runner), so a
 #   fresh install is cheaper than before; but `actions/cache` still won't resolve
 #   on this forge, and vendor/node_modules/public-build are NOT shared between jobs
 #   automatically — without an explicit artifact share each extra job re-installs.

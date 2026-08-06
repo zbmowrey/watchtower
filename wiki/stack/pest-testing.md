@@ -50,8 +50,17 @@ have to remember which API a given repo speaks. Common extras:
 - **Mutation:** Infection runs in a `mutation.yml` CI workflow, covered classes
   only, MSI threshold ~70%. Run locally via `sail composer infection` (verify the
   script name in `composer.json`).
-- **Browser:** `pest-plugin-browser` drives Playwright; needs browsers installed
-  in the container.
+- **Browser: local-only, and it fails silent.** `pest-plugin-browser` drives
+  Playwright and needs the browser **binary** installed in the container
+  (`npm run test:browser:setup` inside the vite container). If CI ships no Chromium
+  it must run `--testsuite=Unit,Feature,Architecture` instead — which means a
+  missing binary turns the whole browser tier off with **nothing red anywhere**.
+  Assume that will happen to you: a suite that is skipped locally *and* excluded in
+  CI is a suite nobody is running. The plugin's own error points at the wrong fix
+  ("Playwright is outdated" — the npm package is current, only the binary is gone)
+  and surfaces as one error plus a wall of bare "Assertion error" lines. Make
+  `BrowserTestCase` fail fast with the real command, and run the tier by hand before
+  shipping anything that touches a page it covers.
 
 ## Writing tests well
 

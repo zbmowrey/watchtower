@@ -3,7 +3,7 @@ title: Fleet App Specification (v1 — mandated operational config)
 description: The normative Specification that mandates how every fleet Laravel app is configured and run — runtime/framework versions, static & lint guardrails, testing, CI/hooks/deploy, runtime guardrails, and how architecture is tested. Locks the operational "how" to a single standard while leaving business logic and domain depth free per app. Derived from a ground-truth audit + maintainer decisions. cquality measures it; this repo enforces it; this page is the requirement of record.
 tags: [ spec, standard, parity, guardrails, versions, mandate, laravel ]
 type: standard
-updated: 2026-07-10
+updated: 2026-08-01
 related: [ laravel-engineering-standard, fleet-frontend-specification, laravel-runtime-guardrails, cquality, pest-testing, repositories, query-builders, controllers ]
 ---
 
@@ -23,6 +23,10 @@ every app's `origin/main` plus maintainer decisions.
 - **Does NOT govern (deliberately free):** each app's **business logic**, feature set, UI, and
   **domain/layering depth** (DDD vs flat+Filament). The spec mandates the *controls*, not the
   *shape* of the domain.
+- **The API surface is a sister spec.** Where an app exposes an HTTP API, everything about
+  that surface — URLs/versioning, request/response/error contracts, token auth, rate-limit
+  values, OpenAPI + contract gates — is owned by **[[fleet-api-specification]]**. This page
+  keeps only the general RateLimiter row in §5; the two do not restate each other.
 - **Front-end architecture is a sister spec.** This page owns the front-end *versions* (§1),
   *lint/tsconfig/prettier* (§2), *Vitest's existence & CI wiring* (§3), and *Vite runtime
   guardrails* (§5). How components are *shaped* (no god components), how React 19 / Inertia v3 are
@@ -162,7 +166,7 @@ resources/js/*`; `include` covers `resources/js/**` + `tests/js/**`.
 
 **Composer dependency hygiene — MUST (added 2026-07-10):** the composer-side twins of knip —
 `maglnet/composer-require-checker` (`^4`, symbols used but not required; config
-`composer-require-checker.json`) and `composer-unused/composer-unused` (`^0.9`, packages
+`composer-require-checker.json`) and `icanhazstring/composer-unused` (`^0.9`, packages
 required but not used; config `composer-unused.php`, every `NamedFilter` carries a one-line
 reason). Both run as `composer require-check` / `composer unused`, **CI-gated** (own steps in
 `static`). First run per app is measure-and-tune: a finding is either a `composer remove`/
@@ -240,7 +244,10 @@ larastan/psalm/pest.
 ## §4 CI / git-hooks / deploy
 
 **CI gate — MUST:** Forgejo Actions, **two jobs named exactly `static` and `tests`** (the
-branch-protection contexts), each tool its **own step** guarded by `if: ${{ !cancelled() }}`,
+branch-protection contexts), each tool its **own step** guarded by `if: ${{ !cancelled() }}`
+**and path-scoped** via the `detect changes` flags (`bin/ci-detect-changes.sh` writes per-step
+booleans to `$GITHUB_ENV`; steps gate on `env.<flag>` — gate steps, never jobs; the detector is
+fail-safe and a `.forgejo/`/`bin/` change forces a full run),
 in the `ci-php` container, with: hand-rolled token `git clone` checkout, **Wayfinder generation
 (`--with-form`)**, a Vite build before Feature tests, **parallel pest via `php -d
 memory_limit=-1 artisan test --parallel`** (Illuminate's ParallelRunner provisions per-worker
@@ -332,6 +339,15 @@ observers, and rate limiting live in a separate **per-domain provider** (registe
 | `Http::preventStrayRequests()`                          | in `TestCase::setUp` (test bootstrap), hermetic suite.                                                                                                                                |
 | RateLimiter                                             | Fortify limiters (login/two-factor[/passkeys]) as the floor; an `api` limiter where the app exposes an API.                                                                           |
 
+> **Multi-tenant carve-out (§5 URL):** apps on the subdomain-per-tenant model **omit
+> `URL::useOrigin`** — it pins the host of every generated URL to the central
+> `APP_URL`, bouncing tenant-subdomain links back to central. They keep
+> `forceScheme('https')` only; the host comes from the request. **Paired
+> requirement:** because the port now comes from the request too, such apps must
+> **not** trust `X-Forwarded-Port` in `trustProxies` (a TLS-terminating ingress
+> forwards `:80`, which would leak into every URL as `https://<host>:80/…` and
+> blank the app under CSP). Trust `FOR | PROTO` only.
+
 **HTTP security — MUST:** a final **`SecurityHeaders` middleware** appended to the web group:
 strips `X-Powered-By`; sets `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
 `Referrer-Policy: strict-origin-when-cross-origin`, a locked `Permissions-Policy`, and **HSTS in
@@ -358,8 +374,18 @@ DSN comes from env (**`SENTRY_LARAVEL_DSN`**) and is **never committed**; an emp
 inert, so **local dev defaults OFF** (no DSN). Sampling is **conservative** (SaaS billing):
 `SENTRY_TRACES_SAMPLE_RATE` low (≤ `0.1`) and `SENTRY_PROFILES_SAMPLE_RATE=0.0` (off) unless an app
 has a measured need. The Sentry **environment** tag MUST match the deploy env (Sentry's default is
-`APP_ENV`; override with `SENTRY_ENVIRONMENT`). Closes the error-tracking half of
-the risk register. Bundle: the `sentry/sentry-laravel` require in
+`APP_ENV`; override with `SENTRY_ENVIRONMENT`).
+
+**Release tagging — MUST:** every prod event carries **`SENTRY_RELEASE` = the deployed git SHA**, so
+an error can be attributed to the deploy that introduced it. **Derive it in the app's Helm chart from
+`image.tag`** (`SENTRY_RELEASE: {{ .Values.image.tag | quote }}` in `templates/configmap.yaml`) rather
+than plumbing it as a second field: the image tag already *is* the deployed SHA and the deploy
+workflow rewrites exactly that one line, so a derived release cannot drift from the image actually
+running. No app code is involved — `sentry-laravel`'s default config resolves `env('SENTRY_RELEASE')`,
+which holds as long as the app does **not** publish a `config/sentry.php` that drops the key. Do not
+*also* set `SENTRY_RELEASE` under `config:` in `values.yaml` — that emits a duplicate ConfigMap key.
+
+Bundle: the `sentry/sentry-laravel` require in
 [`composer.fragment.json`](../../standards/laravel/configs/composer.fragment.json) + the
 `SENTRY_*` `.env` fragment. **SHOULD (not yet mandated):** Sentry's **browser SDK** on the
 React/Inertia front end — a follow-up, not required tonight.
@@ -382,16 +408,108 @@ detection (Discord webhooks rate-limit ~30/min). Golden artifacts:
 [`standards/laravel/configs/logging.php`](../../standards/laravel/configs/logging.php)
 + `logging.env.fragment`. Channel/webhook topology: fleet alerting.
 
-**Scheduler heartbeat (dead-man switch) — MUST (added 2026-07-10):** every app's scheduler runs
+**Scheduler heartbeat (dead-man switch) — MUST:** every app's scheduler runs
 the fleet heartbeat task — a named `fleet-heartbeat` schedule entry, every five minutes, that
-`thenPingIf()`s the app's healthchecks.io check when `services.heartbeat.url` is set (env
+pings the app's healthchecks.io check when `services.heartbeat.url` is set (env
 `SCHEDULE_HEARTBEAT_URL`, injected by the k8s chart; unset locally = inert). A missing ping
 alerts your alerts channel (Discord) + email after the 15-minute grace — the only signal that a
-crashed/wedged scheduler or dead cron produces, since probes only prove the pod runs. Golden
+crashed/wedged scheduler or dead cron produces, since probes only prove the pod runs.
+
+The ping MUST be a **hand-rolled `->then()` form that swallows its own transport failure at
+`Log::debug`** — **not** Laravel's `->thenPingIf()`. The built-in ping `report()`s a failed ping
+through the exception handler, so a transient cURL-28 timeout reaching the ping host surfaces as a
+`production.ERROR` in the app's error channel — redundant with, and mis-routed versus, the dead-man
+alert that is already the single source of truth for "pings stopped". A monitor that pages you when
+*it* is unreachable is a monitor that trains you to ignore it. Golden
 fragment:
 [`standards/laravel/configs/heartbeat.console.fragment.php`](../../standards/laravel/configs/heartbeat.console.fragment.php)
 (the `routes/console.php` block + the `config/services.php` entry — env is read only through
 config). Ops topology (checks, channel, webhook): fleet alerting.
+
+**Identity planes & default-user seeding — MUST.**
+**Organizing principle: identity is partitioned by ORGANIZATION, not by privilege.** Whoever signs
+in belongs to exactly one of three orgs — the **provider** (you, who build and run the software), a
+**client** (the business the app is operated *for*), or the **public** (end users) — and each org
+gets its own **separate store + guard**, reached by its own URL surface. Because the planes are
+distinct stores, **cross-org escalation is impossible by construction**: a user cannot be
+flag-flipped into an operator, an operator cannot become an administrator. "Who may do X" is
+answered by *which org's console they signed into*, never by a role flag on a shared `users` table.
+
+| Plane | Path | Store · guard | Who signs in | Adoption |
+|-------|------|---------------|--------------|----------|
+| **Administrators** (the *control plane*) | **`/control`** | `administrators` · `admin` | **your own staff** — they run the *software*: settings, feature flags, health, support impersonation | **MUST — every app** |
+| **Operators** (the *app-admin plane*) | **`/admin`** | `operators` · `operator` | **all of a client's staff** — owner, managers, front-line; anyone employed by the client business — they run the *business*: its data and config | **per-app-need** — only where a **distinct external client** operates the app |
+| **Users** | **`/login` → `/dashboard`, `/*`** | `users` · `web` (default) | **non-staff consumers / members** plus public marketing routes | always |
+
+Scope of authority follows the org: **administrators** run the software; **operators** run the
+business on it (never platform flags or settings); **users** use the app. A person who wears two
+hats (a client owner who is also a member) holds **two accounts in two stores**; planes never merge.
+Only apps operated for a **distinct external client** get `/admin`. An app you own outright runs
+administrators plus users.
+
+- **Administrators / control plane — MUST.** Every app carries it: an `administrators` table, a
+  dedicated **`admin` guard/provider**, its own **`admin_password_reset_tokens`** table, and RBAC
+  scoped to `guard_name 'admin'`. Single-tenant apps serve it under **`/control`**
+  (`routes/control.php`, required from `web.php`); a multi-tenant app serves it on a reserved
+  **`control.<central-host>` subdomain**.
+- **Operators / app-admin plane — per-app-need.** Where the app is operated for a distinct external
+  client, add a **second** dedicated store: an `operators` table, an **`operator` guard/provider**,
+  `operator_password_reset_tokens`, and RBAC on `guard_name 'operator'`, served at **`/admin`**, for
+  **all** of the client's staff. A **Filament** panel MAY be that plane's UI, bound to the guard
+  (`->authGuard('operator')`, `Operator` implementing `FilamentUser`), instead of hand-rolled React.
+- **Gate on permissions — MUST.** Both privileged planes gate routes on a **permission**
+  (`permission:<x>,admin` / `permission:<x>,operator`), never a role name, so the role-to-permission
+  map moves without touching route or controller code.
+- **Don't leak the privileged planes — SHOULD.** `/control` and `/admin` **MUST NOT** advertise
+  their existence to the wrong audience: an unauthenticated or wrong-plane visitor gets that plane's
+  login or a 404, never a redirect or error that confirms the console is there. The
+  `redirectGuestsTo` closure sends a guest to *their* plane's login by path.
+- **Multi-provider gotcha — MUST.** Adding a second or third provider makes a bare
+  `$request->user()` a `User|Administrator|Operator` **union** for Larastan (its return-type
+  extension unions every guard's provider model for a no-arg `user()`, ignoring
+  `auth.defaults.guard`), failing PHPStan L8 on User-only members. **Fix: a base
+  `App\Http\Requests\FormRequest` overriding `user(): ?User`** (instanceof-narrowed,
+  runtime-unchanged, still resolving the default `web` guard); every FormRequest extends it and
+  controllers keep a bare `$request->user()`. This base is the one permitted **carve-out** from the
+  "form requests are `final`" arch rule (`toExtend` is ancestry-based). A competing PHPStan dynamic
+  extension does **not** work: Larastan's anonymous service wins resolution order. Golden artifact:
+  [`standards/laravel/app/Http/Requests/FormRequest.php`](../../standards/laravel/app/Http/Requests/FormRequest.php).
+- **Default-user seeding — MUST.** Each plane's default account is seeded from a **dedicated `.env`
+  key triple** read **only through `config/seeding.php`**, never `env()` inside a seeder, which
+  keeps `config:cache` safe and passes the "env only via config" arch rule. Every seeder **MUST**:
+  (a) be **idempotent** (`updateOrCreate` on email, so a re-run every deploy converges the account
+  to the current env credentials); (b) be **inert when its keys are blank**, so a plane with no
+  configured default gets **no phantom account**; (c) assign the plane's baseline role. Keys, one
+  **triple** per plane (`_NAME`/`_USERNAME`/`_PASSWORD`): **`CONTROL_DEFAULT_*`** (administrators),
+  **`OPERATOR_DEFAULT_*`** (operators, where the plane exists), **`APP_DEFAULT_*`** (users), and
+  **`TENANT_DEFAULT_*`** (tenant-plane operators, multi-tenant only). `_NAME` is **defaulted**, so
+  omitting it is a no-op; it exists because the point of a plane is knowing *which* plane you are
+  in, which fails when every account is called "Default Admin". **A PARTIAL TRIPLE IS TREATED AS
+  ABSENT** (`blank()` on all three). Half a credential is not a credential, and supplying the
+  missing half from a default is how a weak password gets created. **Locally** `.env.example` ships
+  a known password; **in prod** the deploy injects a long random via a Secret, so rotating it and
+  re-seeding rotates the login. These seeders **replace** any hardcoded `test@example.com` seeds.
+- **Demo / convenience accounts beyond the planes — MUST gate on `local`, not on
+  `!isProduction()`.** `!isProduction()` still seeds a known-password account into **staging and
+  every review environment**, which are reachable and often share a domain. `local` is the only
+  environment where a fixed credential is actually harmless. Both spellings look equally careful in
+  review, which is exactly why this has to be a rule rather than a habit.
+- **Tenant-plane seeding — MUST use `firstOrCreate`, never `updateOrCreate`** (multi-tenant apps).
+  Converging the *central* admin to env is the deliberate rotation contract. A *tenant* operator is
+  a real person inside a database whose contents the platform does not own, and tenant seeding
+  re-runs on every deploy, so `updateOrCreate` would silently reset their password.
+  Blank-means-no-op matters more here than anywhere else: the seeder runs inside **every** tenant
+  database, so a hardcoded fallback is not one account, it is one per tenant, forever. Golden
+  artifacts: [`standards/laravel/configs/seeding.php`](../../standards/laravel/configs/seeding.php)
+  and [`standards/laravel/database/seeders/`](../../standards/laravel/database/seeders/)
+  (`AdministratorSeeder`, `OperatorSeeder`, `DefaultAppUserSeeder`) plus the `seeding.env.fragment`.
+
+> **Multi-tenant mapping.** A subdomain-per-tenant app maps cleanly onto this model with no rename.
+> Central **administrators** (`control.<host>`) are the provider's platform staff; tenant
+> **operators** are each client's own app staff; **users** covers tenant consumers **and** the
+> central account owners who sign up, own one or more tenants, and control each tenant's owner-only
+> global settings (branding, colours, paid feature toggles) that operators cannot change. Ownership
+> is a **user-to-tenant relationship plus an owner-only settings scope**, not a separate store.
 
 ---
 
@@ -441,6 +559,7 @@ record your own apps' deviations the same way.
 | A-04     | all     | layering depth varies (DDD / partial / flat+Filament)               | tracks business-logic complexity; arch is *tested* uniformly                              |
 | A-05     | acme    | Playwright browser suite + app-specific eslint guards               | the only browser-tested app; excluded from PR gate                                        |
 | A-06     | per-app | CSP **font-host** allowlist                                          | none is looser; justified font delivery                                                   |
+| A-07     | MT apps | `AppServiceProvider` omits `URL::useOrigin(app.url)` (keeps `URL::forceScheme`) | pinning the origin rewrites the HOST of every generated URL to the central domain, breaking subdomain-per-tenant links; forcing only the scheme keeps the host from the request |
 | A-csp    | all     | `style-src 'unsafe-inline'`                                          | Radix/@dnd-kit inline styles                                                               |
 | A-vitest | acme    | bespoke 2-project (`node`+`jsdom`) Vitest                           | dual PHP/TS game core with golden vectors                                                  |
 | D-01     | acme    | phpstan `TestCall` ignore at `tests/*`                              | analyses Feature/Unit; narrowing → 1000+ false positives                                  |
