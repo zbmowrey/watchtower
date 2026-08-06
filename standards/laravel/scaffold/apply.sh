@@ -96,7 +96,7 @@ cat <<'CHECKLIST'
   [ ] ⚠ RUNTIME-SECURITY LAYER — NOT scaffolded by this script (it's app-boot
       code, harvested per-app from a reference app). A greenfield app is NOT
       spec-conformant without it, and skipping it is exactly how an app can ship to
-      prod with no CSP (hand-fixed after the fact; see convergence-log). Add, per spec
+      prod with no CSP. Add, per spec
       v1 §5:
         - app/Http/Middleware/SecurityHeaders.php — copy VERBATIM from
           standards/laravel/app/Http/Middleware/SecurityHeaders.php (X-Frame-Options

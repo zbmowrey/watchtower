@@ -10,8 +10,8 @@ integration-test service container — **never** the tool set.
 > **The rule of record is the spec, not this README.** The single mandated value for
 > every concern is [`fleet-app-specification`](../../wiki/standards/fleet-app-specification.md)
 > (`bin/wiki inject --page fleet-app-specification`); the *why* is
-> [`laravel-engineering-standard`](../../wiki/standards/laravel-engineering-standard.md); the
-> dated rollout history is `convergence-log`. These
+> [`laravel-engineering-standard`](../../wiki/standards/laravel-engineering-standard.md); keep your
+> own dated rollout history in `wiki/logs/`. These
 > files ARE the enforced values — when a number here and the spec disagree, the spec
 > wins and these files are brought to it. CI mechanics:
 > `forgejo-ci`. Harvested from the reference app.
@@ -68,9 +68,8 @@ app/Http/Middleware/SecurityHeaders.php  # §5 HTTP security MUST — nonce CSP 
 > **`app/Http/Middleware/SecurityHeaders.php`** (the §5 HTTP-security MUST — nonce-based CSP,
 > HSTS, X-Frame-Options, etc.; a golden reference with two marked per-app tune points, NOT
 > byte-identical — see the file's docblock and `application-security`).
-> This closes the gap that let an app reach prod without CSP in the first
-> place (hand-fixed after the fact; verified live-conformant since — see
-> `convergence-log`) — but until now the *bundle itself*
+> This closes the gap that lets an app reach prod without a CSP in the first
+> place — but until now the *bundle itself*
 > still had no artifact to copy for the *next* greenfield app. The one **runtime-security piece
 > this bundle still does NOT generate** — and a greenfield app MUST add by hand — is
 > **`Http::preventStrayRequests()`** in the test bootstrap; see the `scaffold/apply.sh`
@@ -258,7 +257,7 @@ merge-base). Per tool:
   pass now; the unused files/exports are a burn-down list — re-enable rules as cleaned.
 - **rector is NOT in the standard** — it conflicts with the phpstan L8 gate; phpstan L8 +
   strict-rules + Pint cover the ground. No `rector.php`, `rector/rector` dep, or rector CI
-  step on any app. (How it was removed: see the wiki's convergence-log.)
+  step on any app.
 
 ## Divergence policy
 
@@ -269,8 +268,7 @@ Everything in `configs/` is identical fleet-wide.
 
 ## Convergence history
 
-The dated per-app rollout — who adopted what, when, the phpmd baselines, the parity
-snapshots, the per-tool CI restructure — is `status: living` news. It lives in the
-wiki's `convergence-log`, not here. This README
-stays a timeless apply-guide; the forward burndown is
-`fleet-variance-backlog`.
+The dated per-app rollout — who adopted what and when, the baselines, the parity
+snapshots, the per-tool CI restructure — is `status: living` news. Keep it in your own
+`wiki/logs/`, not here. This README stays a timeless apply-guide; track the forward
+burndown alongside it as a per-app backlog page.
