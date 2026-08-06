@@ -75,7 +75,9 @@ The private-by-nature domains ship as empty structural stubs, tracked with a `.g
 leaks:
 
 `wiki/roadmaps/` · `wiki/projects/` · `wiki/infra/` · `wiki/logs/` · `wiki/todos/` ·
-`wiki/security/` · `saves/` · `reports/` · `content/`
+`saves/` · `reports/` · `content/`
+
+`wiki/security/` is a partial case: the doctrine ships, your posture does not.
 
 Fill them in your own clone. Infra and fleet-ops skills (deploy tracing, CI-log fetching,
 spec-conformance scorecards, multi-app orchestration) are left out as well, because they assume a

@@ -58,7 +58,9 @@ These folders are tracked as empty stubs and `.gitignore`d, so nothing project-s
 public clone. Fill them in your own private fork:
 
 `wiki/roadmaps/` · `wiki/projects/` · `wiki/infra/` · `wiki/logs/` · `wiki/todos/` ·
-`wiki/security/` · `saves/` · `reports/` · `content/`
+`saves/` · `reports/` · `content/`
+
+`wiki/security/` is a partial case: the doctrine ships, your posture does not.
 
 Placeholders to replace with your own values: `your-org`, `git.example.com`, `__APP__`, `acme`,
 `<host>`.
