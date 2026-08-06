@@ -1,6 +1,6 @@
 # watchtower
 
-139 wiki pages, 66 runnable config artifacts, and 12 agent skills, in one repo you clone and
+144 wiki pages, 66 runnable config artifacts, and 13 agent skills, in one repo you clone and
 point at your own work.
 
 Watchtower is a scaffold for building software to a standard and then getting people to use it.
@@ -64,9 +64,9 @@ The same procedures run under more than one agent runtime: `AGENTS.md` is Codex'
 and points at `CLAUDE.md` as the shared law, `.agents/skills` symlinks to `.claude/skills` so a
 workflow is never hand-copied, and `bin/codex-setup check` validates the wiring.
 
-`.claude/skills/` holds 12 reusable agent procedures: wiki maintenance, Pest testing, architecture
-mapping, code review, roadmap and todo planning, session save and restore, and a copywriting
-standard. `bin/check` is the mechanical anti-rot suite, wired to a pre-commit hook.
+`.claude/skills/` holds 13 reusable agent procedures: wiki search and maintenance, Pest testing,
+architecture mapping, code review, review response, roadmap and todo planning, goal sprints, session
+save and restore, and a copywriting standard. `bin/check` is the mechanical anti-rot suite, wired to a pre-commit hook.
 
 ## What is deliberately not here
 

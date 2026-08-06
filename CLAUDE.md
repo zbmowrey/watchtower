@@ -48,8 +48,9 @@ shaped: [[planning-conventions]].
 
 Skills live in `.claude/skills/` and the harness injects each one's description, so invoke when the
 task matches. They are **procedure**, not facts: a skill injects the relevant wiki page at runtime
-rather than hardcoding a value. Included: wiki maintenance, Pest testing, architecture mapping,
-code review, roadmap, roadmap-eval, todo, save, restore, and copywriting. Slash commands: `/wiki`
+rather than hardcoding a value. Included: wiki, wiki-maintain, pest-testing,
+architecture-map, code-review, review-response, roadmap, roadmap-eval, todo, goal, save, restore,
+and copywriting. Slash commands: `/wiki`
 runs `bin/wiki`, and `/project <slug>` injects a project page once you have created one.
 
 ## Your private content
