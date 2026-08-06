@@ -300,11 +300,25 @@ merge-base). Per tool:
   strict-rules + Pint cover the ground. No `rector.php`, `rector/rector` dep, or rector CI
   step on any app.
 
+## Opt-in bundles — capabilities, not ratchets
+
+`configs/` is the mandatory bundle. Alongside it sit **opt-in** bundles: patterns proven
+on one app and packaged so another can adopt them deliberately, each with its own README
+stating what it costs as well as what it buys. They are NOT convergence targets, and no
+conformance check looks for them.
+
+- **`edge-cache/`** — serve an app's public marketing pages from the CDN (`ThemeScript` +
+  `PubliclyCacheable` + the matching CDN rule). Buys edge-served first paint for anonymous
+  visitors; costs `Vite::prefetch`. Worth it for a real marketing surface, a straight loss
+  for an app that is almost entirely behind auth. Requires an `arch-drift.allow` entry: the
+  nonce removal diverges the byte-locked `AppServiceProvider`.
+
 ## Divergence policy
 
 Allowed to differ **only**: which workloads deploy (reverb/worker/scheduler),
 which `services:` an app's *integration* tests need (redis for Valkey, s3/minio
-for MinIO), the Browser/E2E job (opt-in, app-specific), and business logic.
+for MinIO), the Browser/E2E job (opt-in, app-specific), an adopted opt-in bundle
+above (with its documented `arch-drift.allow` entry), and business logic.
 Everything in `configs/` is identical fleet-wide.
 
 ## Convergence history

@@ -92,40 +92,40 @@ jobs:
       # the fleet SAST). Mutation (MSI) + Browser/E2E stay SEPARATE local/optional
       # jobs (mutation runs minutes; browser needs Chromium).
       - name: composer-normalize
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_composer == 'true' }}
         run: composer normalize:check
       - name: knip
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_js == 'true' }}
         run: npm run knip
       - name: jscpd (dup:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: npm run dup:check
       - name: pint (lint:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: composer lint:check
       - name: npm audit
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_npm_audit == 'true' }}
         run: npm audit --omit=dev --audit-level=high
       - name: phpmd (md)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: composer md
       - name: composer audit
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_composer == 'true' }}
         run: composer audit --abandoned=report
       - name: composer-require-checker (require-check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_composer == 'true' }}
         run: composer require-check
       - name: composer-unused (unused)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_composer == 'true' }}
         run: composer unused
       - name: prettier (format:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_prettier == 'true' }}
         run: npm run format:check
       - name: tsc (types:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_js == 'true' }}
         run: npm run types:check
       - name: larastan (stan)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         # Persistent result cache on the runner's /phpstan-cache volume, scoped
         # per project + target branch (copy configs/phpstan.ci.neon, replace
         # __APP__). Warm runs re-analyse only changed files + dependents —
@@ -136,17 +136,17 @@ jobs:
           mkdir -p /phpstan-cache/__APP__/main
           composer stan -- -c phpstan.ci.neon
       - name: eslint (lint:check)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_js == 'true' }}
         run: npm run lint:check
       - name: psalm (taint)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: composer psalm-taint
       - name: baseline ratchet guard (spec §2 — a baseline may only shrink)
         # Fails if any static-analysis baseline (phpstan/phpmd/psalm) GREW vs the PR's
         # merge-base — i.e. it was re-generated to absorb new findings. Deepen enough
         # history for the merge-base; the guard falls back to the main tip otherwise,
         # and exits non-zero (never silently green) if main isn't reachable.
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: |
           git fetch --quiet --deepen=100 origin "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" || true
           git fetch --quiet --depth=100 origin main:refs/remotes/origin/main || true
@@ -155,7 +155,7 @@ jobs:
         # Destructive DDL in an ADDED migration needs an `// expand-contract:`
         # marker — a PreSync migrate can't be un-migrated by a tag revert.
         # Reuses the origin/main ref fetched by the baseline-guard step above.
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.static_php == 'true' }}
         run: bash bin/migration-safety.sh origin/main
       - name: notify alerts channel on failure
         # Red CI posts to your alerts Discord channel (a CI sensor net —
@@ -269,7 +269,7 @@ jobs:
       #   3. compose.yaml pgsql needs command max_locks_per_transaction=512 so
       #      local parallel runs don't hit SQLSTATE 53200.
       - name: pest + coverage (parallel)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.tests_php == 'true' }}
         # Retry-once absorbs the known transient coverage-bootstrap flake in the
         # ci-php image (the step fails only if BOTH attempts fail) — every working
         # fleet app carries this; the template was missing it, which
@@ -281,10 +281,10 @@ jobs:
           php -d memory_limit=-1 artisan test --parallel --testsuite=Unit,Feature,Architecture --coverage --min=80 \
             || php -d memory_limit=-1 artisan test --parallel --testsuite=Unit,Feature,Architecture --coverage --min=80
       - name: type-coverage
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.tests_php == 'true' }}
         run: composer type-coverage
       - name: vitest
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.tests_js == 'true' }}
         run: npm run test
       - name: notify alerts channel on failure
         # Same contract as the static job's notify step (see comment there).

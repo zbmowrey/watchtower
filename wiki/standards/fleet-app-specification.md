@@ -426,6 +426,91 @@ fragment:
 (the `routes/console.php` block + the `config/services.php` entry — env is read only through
 config). Ops topology (checks, channel, webhook): fleet alerting.
 
+**Identity planes & default-user seeding — MUST.**
+**Organizing principle: identity is partitioned by ORGANIZATION, not by privilege.** Whoever signs
+in belongs to exactly one of three orgs — the **provider** (you, who build and run the software), a
+**client** (the business the app is operated *for*), or the **public** (end users) — and each org
+gets its own **separate store + guard**, reached by its own URL surface. Because the planes are
+distinct stores, **cross-org escalation is impossible by construction**: a user cannot be
+flag-flipped into an operator, an operator cannot become an administrator. "Who may do X" is
+answered by *which org's console they signed into*, never by a role flag on a shared `users` table.
+
+| Plane | Path | Store · guard | Who signs in | Adoption |
+|-------|------|---------------|--------------|----------|
+| **Administrators** (the *control plane*) | **`/control`** | `administrators` · `admin` | **your own staff** — they run the *software*: settings, feature flags, health, support impersonation | **MUST — every app** |
+| **Operators** (the *app-admin plane*) | **`/admin`** | `operators` · `operator` | **all of a client's staff** — owner, managers, front-line; anyone employed by the client business — they run the *business*: its data and config | **per-app-need** — only where a **distinct external client** operates the app |
+| **Users** | **`/login` → `/dashboard`, `/*`** | `users` · `web` (default) | **non-staff consumers / members** plus public marketing routes | always |
+
+Scope of authority follows the org: **administrators** run the software; **operators** run the
+business on it (never platform flags or settings); **users** use the app. A person who wears two
+hats (a client owner who is also a member) holds **two accounts in two stores**; planes never merge.
+Only apps operated for a **distinct external client** get `/admin`. An app you own outright runs
+administrators plus users.
+
+- **Administrators / control plane — MUST.** Every app carries it: an `administrators` table, a
+  dedicated **`admin` guard/provider**, its own **`admin_password_reset_tokens`** table, and RBAC
+  scoped to `guard_name 'admin'`. Single-tenant apps serve it under **`/control`**
+  (`routes/control.php`, required from `web.php`); a multi-tenant app serves it on a reserved
+  **`control.<central-host>` subdomain**.
+- **Operators / app-admin plane — per-app-need.** Where the app is operated for a distinct external
+  client, add a **second** dedicated store: an `operators` table, an **`operator` guard/provider**,
+  `operator_password_reset_tokens`, and RBAC on `guard_name 'operator'`, served at **`/admin`**, for
+  **all** of the client's staff. A **Filament** panel MAY be that plane's UI, bound to the guard
+  (`->authGuard('operator')`, `Operator` implementing `FilamentUser`), instead of hand-rolled React.
+- **Gate on permissions — MUST.** Both privileged planes gate routes on a **permission**
+  (`permission:<x>,admin` / `permission:<x>,operator`), never a role name, so the role-to-permission
+  map moves without touching route or controller code.
+- **Don't leak the privileged planes — SHOULD.** `/control` and `/admin` **MUST NOT** advertise
+  their existence to the wrong audience: an unauthenticated or wrong-plane visitor gets that plane's
+  login or a 404, never a redirect or error that confirms the console is there. The
+  `redirectGuestsTo` closure sends a guest to *their* plane's login by path.
+- **Multi-provider gotcha — MUST.** Adding a second or third provider makes a bare
+  `$request->user()` a `User|Administrator|Operator` **union** for Larastan (its return-type
+  extension unions every guard's provider model for a no-arg `user()`, ignoring
+  `auth.defaults.guard`), failing PHPStan L8 on User-only members. **Fix: a base
+  `App\Http\Requests\FormRequest` overriding `user(): ?User`** (instanceof-narrowed,
+  runtime-unchanged, still resolving the default `web` guard); every FormRequest extends it and
+  controllers keep a bare `$request->user()`. This base is the one permitted **carve-out** from the
+  "form requests are `final`" arch rule (`toExtend` is ancestry-based). A competing PHPStan dynamic
+  extension does **not** work: Larastan's anonymous service wins resolution order. Golden artifact:
+  [`standards/laravel/app/Http/Requests/FormRequest.php`](../../standards/laravel/app/Http/Requests/FormRequest.php).
+- **Default-user seeding — MUST.** Each plane's default account is seeded from a **dedicated `.env`
+  key triple** read **only through `config/seeding.php`**, never `env()` inside a seeder, which
+  keeps `config:cache` safe and passes the "env only via config" arch rule. Every seeder **MUST**:
+  (a) be **idempotent** (`updateOrCreate` on email, so a re-run every deploy converges the account
+  to the current env credentials); (b) be **inert when its keys are blank**, so a plane with no
+  configured default gets **no phantom account**; (c) assign the plane's baseline role. Keys, one
+  **triple** per plane (`_NAME`/`_USERNAME`/`_PASSWORD`): **`CONTROL_DEFAULT_*`** (administrators),
+  **`OPERATOR_DEFAULT_*`** (operators, where the plane exists), **`APP_DEFAULT_*`** (users), and
+  **`TENANT_DEFAULT_*`** (tenant-plane operators, multi-tenant only). `_NAME` is **defaulted**, so
+  omitting it is a no-op; it exists because the point of a plane is knowing *which* plane you are
+  in, which fails when every account is called "Default Admin". **A PARTIAL TRIPLE IS TREATED AS
+  ABSENT** (`blank()` on all three). Half a credential is not a credential, and supplying the
+  missing half from a default is how a weak password gets created. **Locally** `.env.example` ships
+  a known password; **in prod** the deploy injects a long random via a Secret, so rotating it and
+  re-seeding rotates the login. These seeders **replace** any hardcoded `test@example.com` seeds.
+- **Demo / convenience accounts beyond the planes — MUST gate on `local`, not on
+  `!isProduction()`.** `!isProduction()` still seeds a known-password account into **staging and
+  every review environment**, which are reachable and often share a domain. `local` is the only
+  environment where a fixed credential is actually harmless. Both spellings look equally careful in
+  review, which is exactly why this has to be a rule rather than a habit.
+- **Tenant-plane seeding — MUST use `firstOrCreate`, never `updateOrCreate`** (multi-tenant apps).
+  Converging the *central* admin to env is the deliberate rotation contract. A *tenant* operator is
+  a real person inside a database whose contents the platform does not own, and tenant seeding
+  re-runs on every deploy, so `updateOrCreate` would silently reset their password.
+  Blank-means-no-op matters more here than anywhere else: the seeder runs inside **every** tenant
+  database, so a hardcoded fallback is not one account, it is one per tenant, forever. Golden
+  artifacts: [`standards/laravel/configs/seeding.php`](../../standards/laravel/configs/seeding.php)
+  and [`standards/laravel/database/seeders/`](../../standards/laravel/database/seeders/)
+  (`AdministratorSeeder`, `OperatorSeeder`, `DefaultAppUserSeeder`) plus the `seeding.env.fragment`.
+
+> **Multi-tenant mapping.** A subdomain-per-tenant app maps cleanly onto this model with no rename.
+> Central **administrators** (`control.<host>`) are the provider's platform staff; tenant
+> **operators** are each client's own app staff; **users** covers tenant consumers **and** the
+> central account owners who sign up, own one or more tenants, and control each tenant's owner-only
+> global settings (branding, colours, paid feature toggles) that operators cannot change. Ownership
+> is a **user-to-tenant relationship plus an owner-only settings scope**, not a separate store.
+
 ---
 
 ## §6 Architecture (the flexible axis)

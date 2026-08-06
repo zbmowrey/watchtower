@@ -1,0 +1,77 @@
+# Trivy exceptions for the deploy-gate image scan (.forgejo/workflows/deploy.yml).
+#
+# THIS FILE IS A RISK REGISTER, NOT A MUTE BUTTON. Every entry must be a finding
+# we cannot fix from this repo, must say WHY it is not exploitable here, and must
+# carry an `expired_at`. When that date passes the finding re-blocks the deploy —
+# that is the point: it forces a fresh look instead of a permanent silence.
+#
+# Entries are path-scoped, so the gate stays fully live for every other package
+# and every other finding in the same binary.
+#
+# Before adding one, exhaust the real fixes first:
+#   - OS packages are already patched by `apk upgrade` in the Dockerfile's
+#     runtime-base stage. An OS CVE here almost certainly means that upgrade
+#     needs to move, not that the finding needs suppressing.
+#   - PHP/JS deps are ours: bump them.
+# Only a vulnerability compiled into a BASE-IMAGE binary we do not build belongs
+# in this file.
+
+vulnerabilities:
+  - id: GHSA-hrxh-6v49-42gf
+    paths:
+      - usr/local/bin/frankenphp
+    statement: >-
+      gRPC-Go xDS RBAC + HTTP/2 advisory (grpc-go v1.81.1, fixed in 1.82.1),
+      statically linked into the FrankenPHP binary that ships in the upstream
+      dunglas/frankenphp base image. NOT FIXABLE FROM THIS REPO: we do not build
+      that binary, `apk upgrade` cannot touch a compiled-in Go module, and as of
+      2026-07-24 the newest published tag (1-php8.4-alpine, pushed 2026-07-20)
+      still links v1.81.1 — verified by scanning the base image directly. There
+      is no fixed image to move to.
+
+      NOT REACHABLE IN THIS RUNTIME. The advisory is three findings: two are xDS
+      RBAC bugs (authorization bypass and a parser panic) that require an xDS
+      control plane, which this app has none of; the third is an HTTP/2 DoS in
+      grpc-go's own server transport, which only runs under a started
+      grpc.Server. Our entrypoint is `frankenphp run --config
+      /app/docker/Caddyfile`, and that Caddyfile serves plain HTTP/PHP on :8080
+      with no gRPC module — Caddy's own HTTP/2 serving goes through
+      golang.org/x/net/http2, a different code path. grpc-go is linked but never
+      listens.
+
+      REVISIT: drop this entry as soon as dunglas/frankenphp publishes an image
+      built against grpc-go >= 1.82.1. Check with:
+        docker run --rm aquasec/trivy:0.71.1 image --scanners vuln \
+          --severity HIGH,CRITICAL dunglas/frankenphp:1-php8.4-alpine
+    expired_at: 2026-09-15
+
+  - id: GHSA-r277-6w6q-xmqw
+    paths:
+      - usr/local/bin/frankenphp
+    statement: >-
+      kin-openapi ValidationHandler.Load() fail-open authentication bypass
+      (getkin/kin-openapi v0.140.0, fixed in 0.144.0), statically linked into the
+      FrankenPHP binary that ships in the upstream dunglas/frankenphp base image.
+      NOT FIXABLE FROM THIS REPO: we do not build that binary, `apk upgrade`
+      cannot touch a compiled-in Go module, and as of 2026-07-24 the newest
+      published tag (1-php8.4-alpine, pushed 2026-07-20) still links v0.140.0 —
+      verified by scanning the base image directly. There is no fixed image to
+      move to.
+
+      NOT REACHABLE IN THIS RUNTIME. The bug is that a kin-openapi
+      ValidationHandler constructed without an AuthenticationFunc falls back to
+      NoopAuthenticationFunc, so Load() succeeds and every declared
+      securityScheme passes — a fail-open auth bypass. Reaching it requires an
+      application to load an OpenAPI document, build a ValidationHandler from it,
+      and route requests through that handler. this app does none of those things:
+      our entrypoint is `frankenphp run --config /app/docker/Caddyfile`, and that
+      Caddyfile declares exactly two handlers — `file_server` for static assets
+      and `php_server` for everything else. No OpenAPI document is loaded and no
+      ValidationHandler is ever constructed in this image, so the vulnerable code
+      path cannot execute. The package is linked but never invoked.
+
+      REVISIT: drop this entry as soon as dunglas/frankenphp publishes an image
+      built against kin-openapi >= 0.144.0. Check with:
+        docker run --rm aquasec/trivy:0.71.1 image --scanners vuln \
+          --severity HIGH,CRITICAL dunglas/frankenphp:1-php8.4-alpine
+    expired_at: 2026-09-15
