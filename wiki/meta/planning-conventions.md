@@ -4,7 +4,7 @@ description: The fleet practice for per-project planning — lightweight one-off
 tags: [meta, planning, roadmap, todo, conventions]
 type: meta
 status: normative
-updated: 2026-06-28
+updated: 2026-07-11
 related: [wiki-conventions, tending-the-garden, roadmaps, todos]
 ---
 
@@ -18,7 +18,7 @@ inject this page rather than re-stating the format.
 | Artifact      | Holds                                              | Lives at                                       | Lifecycle                                       |
 |---------------|----------------------------------------------------|------------------------------------------------|-------------------------------------------------|
 | **Todo list** | One-off items to tackle eventually                 | `wiki/todos/<slug>-todos.md` (one per project) | add → done **& validated** → **delete the row** |
-| **Roadmap**   | Prioritized features / milestones, with deep dives | `wiki/roadmaps/<project>/<item>/`              | shape → active → delivered → archive (+30d)     |
+| **Roadmap**   | Prioritized features / milestones, with deep dives | `wiki/roadmaps/<project>/<item>/`              | shape → active → delivered → **cut immediately** (archive or delete) |
 
 > **Naming — do not confuse two "roadmaps".** A **product roadmap** (this page) lives
 > under `wiki/roadmaps/` and tracks *features we want to build*. A
@@ -84,7 +84,7 @@ todos hub stays honest.
 > **Format vs quality.** This page owns the roadmap **format** (the structure below —
 > the lint-floor). The **quality bar** — how to evaluate whether an item is *well-shaped*
 > and a roadmap *coherent* (the item rubric, coherence rules, and evaluation ritual) — is
-> the Roadmap Process Spec (`wiki/roadmaps/spec/`). Conform to both.
+> your own Roadmap Process Spec, kept alongside the roadmaps it governs. Conform to both.
 
 A project roadmap is a **prioritized list of features/milestones**, each a directory
 of living planning docs. Domain layout:
@@ -154,7 +154,6 @@ priority: 1                 # rank within the project roadmap (mirror the _index
 readiness: needs-shaping    # needs-shaping | shaping | ready-for-work
 stage: backlog              # backlog | active | in-review | delivered | archived
 delivered:                  # ISO date delivered; blank until done
-archive_after:              # delivered + 30d; set on delivery → drives the archive pass
 ---
 
 # <Item Name>
@@ -163,7 +162,7 @@ archive_after:              # delivered + 30d; set on delivery → drives the ar
 What "done" looks like — the user-visible result and why it matters.
 
 ## Present status
-Free-text current note — the churny one ("blocked on X", "PR #42 in review",
+Free-text current note — the churny one ("blocked on X", "in review",
 "plan steps 1–3 landed"). Keep `updated:` in sync.
 
 ## Plan & detail
@@ -222,24 +221,33 @@ state machine:
 | `backlog`   | captured, maybe not shaped | set `readiness` honestly                                                              |
 | `active`    | being worked               | keep `## Present status` + `plan.md` current                                          |
 | `in-review` | built, under review/PR     | link the PR in `## Present status`                                                    |
-| `delivered` | shipped & validated        | set `delivered:` (today) + `archive_after:` (today + 30d); fill `## Completion notes` |
-| `archived`  | aged out                   | item dir moved to `<project>/archive/`                                                |
+| `delivered` | shipped & validated        | set `delivered:` (today); fill `## Completion notes`; **cut from the live roadmap now** (§2d) |
+| `archived`  | record kept for reference  | item dir moved to `<project>/archive/`                                                |
 
 Always bump `updated:` and re-run `bin/wiki index` after edits.
 
-### 2d. Archiving (+30 days after delivery)
+### 2d. Cutting delivered items (immediately, as part of delivery)
 
-Delivered items stay visible for 30 days, then archive on a **user-triggered pass**
-("archive old roadmap items"). The pass:
+**The live roadmap only ever shows what's left to do.** Cutting a delivered item is the
+final step of *delivering* it, not a later pass — a delivered item left sitting on the
+board for a dwell period is just noise everyone learns to scroll past:
 
-1. Find items with `stage: delivered` **and** today ≥ `archive_after`.
-2. `git mv wiki/roadmaps/<project>/<item>/ wiki/roadmaps/<project>/archive/<item>/`
-   (a structural move — by [[tending-the-garden]], commit before moving if the tree is
-   dirty so nothing is lost).
-3. Set `stage: archived` in the moved `_index.md`; bump `updated:`.
+1. Fill `## Completion notes` (what shipped, PR#/commit, follow-ups spun out as todos)
+   and set `delivered:`.
+2. **Cut it from the live roadmap**, choosing by residual value:
+   - **Archive** (the record has value — gotchas, decisions, provenance others will
+     cite): `git mv wiki/roadmaps/<project>/<item>/ wiki/roadmaps/<project>/archive/<item>/`
+     (a structural move — by [[tending-the-garden]], commit before moving if the tree is
+     dirty so nothing is lost); set `stage: archived`, bump `updated:`.
+   - **Delete** (trivial, or fully recorded elsewhere): remove the dir — git history
+     keeps it.
+3. Remove the item's line from the project `_index.md` `## Priority order` list — a
+   delivered item never occupies a rank.
 4. Re-run `bin/wiki lint` + `bin/wiki index`.
 
 The `archive/` subdir keeps history discoverable but out of the active priority list.
+A `stage: delivered` item still sitting in the live tree is a **straggler** — flag and
+cut it on sight (the fleet digest / freshness sentinel report these).
 
 ---
 
@@ -248,8 +256,8 @@ The `archive/` subdir keeps history discoverable but out of the active priority 
 - **`todo`** — `add a todo`, `what's on my todo list?`, `todo done`. Manages
   `wiki/todos/<slug>-todos.md` per §1.
 - **`roadmap`** — `add to the roadmap`, `what's on the roadmap?`, `show roadmap`,
-  `advance/update roadmap item`, `archive roadmap items`. Manages the
-  `wiki/roadmaps/<project>/` tree per §2.
+  `advance/update roadmap item`, `mark it delivered` (which cuts it, per §2d). Manages
+  the `wiki/roadmaps/<project>/` tree per §2.
 
 Both resolve the active project from the `⟦project: <name>⟧` marker / current work,
 inject **this page** for the format, and always finish with `bin/wiki lint` +

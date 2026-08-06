@@ -5,7 +5,7 @@ tags: [ standard, testing, anti-patterns, smells, pest, phpunit, audit ]
 type: standard
 status: normative
 updated: 2026-07-10
-related: [ fleet-testing-doctrine, pest-testing, fleet-app-specification, pest-architecture-testing, fleet-frontend-specification ]
+related: [fleet-testing-doctrine, pest-testing, fleet-app-specification, pest-architecture-testing, fleet-frontend-specification]
 ---
 
 # Testing Anti-Pattern Catalog

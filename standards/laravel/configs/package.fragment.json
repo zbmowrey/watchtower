@@ -43,6 +43,7 @@
         "dup:check": "jscpd app",
         "knip": "knip",
         "bundle:check": "node bin/check-bundle-size.mjs",
+        "compress": "node bin/compress-assets.mjs",
         "test": "vitest run",
         "test:coverage": "vitest run --coverage",
         "prepare": "husky"

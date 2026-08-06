@@ -6,13 +6,16 @@ description: Evaluate and shape product-roadmap items against the watchtower roa
 # roadmap-eval
 
 Apply the **watchtower roadmap process** — the quality/evaluation standard — to a roadmap
-item or a whole project roadmap. The standard is owned by the
-**[[roadmap-process-spec]]** (`wiki/roadmaps/spec/`); **inject it first** and follow it,
-don't restate it:
+item or a whole project roadmap. The standard is owned by your own **roadmap process
+spec** — write it once, keep it beside the roadmaps it governs; **inject it first** and
+follow it, don't restate it here:
 
 ```
 bin/wiki inject --page roadmap-process-spec --depth 1
 ```
+
+If you have not written that spec yet, [[planning-conventions]] carries enough of the
+shape to work from, and the rubric in §2 below stands on its own.
 
 (`--depth 1` pulls the four shards — item rubric, coherence rules, evaluation process,
 decisions log.)
@@ -65,10 +68,9 @@ may warrant a scoring/ideation council (record it in `wiki/logs/`).
 ## 3. Evolve the spec when it falls short
 
 If an evaluation hits something the spec doesn't cover or gets wrong, **change the spec
-first**: add an entry to the [decisions log](../../wiki/roadmaps/spec/decisions.md) (a new
-`Dn`, or an open question), then update the affected rule page. The spec changes by
-*logged decision* — that is how we keep control of our own destiny. (D7 and D8 were both
-born this way, from the launch-definition worked example.)
+first**: add an entry to its decisions log (a new `Dn`, or an open question), then update
+the affected rule page. The spec changes by *logged decision* — a rule you can't trace to
+a decision is a rule nobody owns.
 
 ## 4. Finish
 

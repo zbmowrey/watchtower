@@ -63,8 +63,9 @@ change is reversible).
 - **A new project** → one entry in `apps.json` + one `wiki/projects/<slug>.md` leaf.
   The justfile, statusline, arg-hint, and `projects/_index` then derive automatically.
 - **A new skill** → one `SKILL.md` whose description the harness discovers. No
-  CLAUDE.md edit. Skills are procedure — they inject the relevant wiki page at runtime
-  rather than hardcoding the roster, a version, or a date (`skill-lint.sh` enforces).
+  agent entry-file edit. Skills are procedure — they inject the relevant wiki page
+  at runtime rather than hardcoding the roster, a version, or a date
+  (`bin/skill-lint` enforces).
 - **A new standard threshold** → the value in `standards/laravel/configs/` (CI
   consumes it) + one sentence in [[fleet-app-specification]] (the rule).
 - **A new concept** → one leaf under exactly one domain directory; the hub regenerates.
@@ -80,7 +81,7 @@ These defend the invariants so the garden doesn't rely on diligence:
 - `bin/wiki index` — regenerates each hub's navigation from leaf frontmatter (hubs
   hold no hand-maintained fact lists, so they can't rot).
 - `bin/fleet check` — `apps.json` is valid and its consumers are in sync.
-- `.claude/hooks/skill-lint.sh` — no PR numbers / dates / hardcoded rosters in skills.
+- `bin/skill-lint` — no PR numbers / dates / hardcoded rosters in agent skills.
 
 Run them all at once with **`just check`** (or `bin/check`) — the hard checks
 (frontmatter, hubs, `apps.json`) fail the run; the soft ones (dangling links, skill

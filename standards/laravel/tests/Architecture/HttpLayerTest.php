@@ -63,7 +63,17 @@ arch('form requests extend FormRequest')
 arch('form requests are final')
     ->expect('App\Http\Requests')
     ->classes()
-    ->toBeFinal();
+    ->toBeFinal()
+    // The base App\Http\Requests\FormRequest is intentionally abstract — every
+    // concrete request extends it; it types user() as ?App\Models\User so a bare
+    // $request->user() resolves the app user without naming the guard (§5).
+    //
+    // Named as a STRING, not ::class, on purpose: this tier file is byte-locked
+    // across the fleet, and an app only grows that base once it has a second auth
+    // provider. Where it doesn't exist yet, `::class` makes PHPStan L8 fail with
+    // "Class App\Http\Requests\FormRequest not found"; a string is inert there and
+    // filters identically where the class does exist.
+    ->ignoring('App\Http\Requests\FormRequest');
 
 // ── Middleware ───────────────────────────────────────────────────────────
 arch('middleware exposes a handle() method')

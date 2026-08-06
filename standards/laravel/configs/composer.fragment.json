@@ -1,17 +1,17 @@
 {
-    "_comment": "Fleet-standard composer pieces. Merge these into each app's composer.json (don't overwrite app require/autoload). phpmd lives in vendor-bin/phpmd via bamarni so its dep tree (pdepend, etc.) can't conflict with app deps. Psalm (SAST taint) lives in the ROOT require-dev (vimeo/psalm + psalm/plugin-laravel) and runs via `composer psalm-taint`; it needs a psalm.xml (errorLevel 8, findUnusedCode:false, Laravel plugin) copied alongside. `composer mutation` is a LOCAL-ONLY gate (see _comment-mutation), never wired into ci.yml. After merging: `composer update` (forward-command installs vendor-bin too), then `composer normalize`.",
+    "_comment": "Fleet-standard composer pieces. Merge these into each app's composer.json (don't overwrite app require/autoload). phpmd lives in vendor-bin/phpmd via bamarni so its dep tree (pdepend, etc.) can't conflict with app deps. Psalm (SAST taint) lives in the ROOT require-dev (vimeo/psalm + psalm/plugin-laravel) and runs via `composer psalm-taint`; it needs a psalm.xml (errorLevel 8, findUnusedCode:false, Laravel plugin) copied alongside. `composer mutation` is a LOCAL-ONLY gate (see _comment-mutation), never wired into ci.yml. After merging: `composer update` (forward-command installs vendor-bin too), then `composer normalize`. DEV TOOLS BELONG IN require-dev, NOT require (PERF/leanness — the production image installs with --no-dev, so anything in `require` ships to a read-only pod forever): `laravel/tinker` drags PsySH (~2.7MB) in to serve a REPL that a hardened zero-shell pod can never run; `dedoc/scramble` drags nikic/php-parser + phpstan + phpdocumentor in to serve /docs/api, which its own gate makes a 403 in production; `laravel/chisel` is a one-shot scaffold pruner. Moving all three on acme cut vendor 60.3MB → 51.4MB with ZERO version changes. Check with `composer install --no-dev --dry-run` before assuming a package is needed at runtime, and remember composer-unused only scans `require`, so a filter for a package you move becomes dead config — delete it in the same PR.",
 
     "_comment-sentry": "sentry/sentry-laravel is the fleet error-tracking mandate (spec v1 §5) and a RUNTIME require (not require-dev). Merge it into the app's `require`. Wire it in bootstrap/app.php's ->withExceptions(...) closure via `\\Sentry\\Laravel\\Integration::handles($exceptions);` (the report seam). DSN from env SENTRY_LARAVEL_DSN (empty locally = SDK inert); see the SENTRY_* .env fragment. Verify the constraint resolves against the app's laravel/framework (^13) at merge — bump the major if composer refuses. Do NOT publish config/sentry.php unless an app needs to override defaults; the env keys cover the standard.",
 
     "require": {
-        "sentry/sentry-laravel": "^5.0"
+        "sentry/sentry-laravel": "^4.0"
     },
 
     "_comment-deps-hygiene": "spec v1 §2 (added 2026-07-10): composer-require-checker (symbols used but not required) + composer-unused (packages required but not used) are the composer-side twins of knip. Configs: composer-require-checker.json + composer-unused.php (copy alongside). First run per app is measure-and-tune — whitelist/filter with a reason, or fix the manifest. rector is the LOCAL modernization tool (owner ruling 2026-07-10): config rector.php, `composer rector` previews / `composer rector:fix` applies, run before PHP/framework bumps — deliberately NOT in ci.yml. Verify each constraint resolves on merge; bump the major if composer refuses (same rule as sentry above).",
 
     "require-dev": {
         "bamarni/composer-bin-plugin": "^1",
-        "composer-unused/composer-unused": "^0.9",
+        "icanhazstring/composer-unused": "^0.9",
         "ergebnis/composer-normalize": "^2",
         "larastan/larastan": "^3",
         "laravel/pint": "^1",

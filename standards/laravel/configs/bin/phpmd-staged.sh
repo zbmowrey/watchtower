@@ -14,8 +14,23 @@
 #   phpmd-staged.sh <file.php> [file.php ...]
 set -e
 
+root=$(pwd)
+
 list=
 for f in "$@"; do
+  # lint-staged hands us ABSOLUTE paths, but every prefix match below is
+  # repo-relative. Without this, each path fell through to `continue`, the list
+  # came out empty, and the hook exited 0 without ever invoking phpmd — a green
+  # gate that checked nothing, so complexity violations reached CI instead.
+  case "$f" in
+    "$root"/*) f=${f#"$root"/} ;;
+  esac
+  case "$f" in
+    # composer md scans `app` ONLY — a staged file outside it (seeders,
+    # migrations, tests) must not trip a check the CI run would skip.
+    app/*) ;;
+    *)                 continue ;;
+  esac
   case "$f" in
     */Filament/*)      continue ;;
     */Domain/*/Data/*) continue ;;
