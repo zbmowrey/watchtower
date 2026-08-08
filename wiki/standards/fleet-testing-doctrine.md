@@ -4,7 +4,7 @@ description: The normative judgment layer for testing every fleet Laravel app �
 tags: [ spec, standard, testing, pest, phpunit, unit-tests, architecture-tests, mandate ]
 type: standard
 status: normative
-updated: 2026-07-10
+updated: 2026-08-08
 related: [fleet-app-specification, testing-antipattern-catalog, laravel-engineering-standard, pest-testing, pest-architecture-testing, dependency-rules, laravel-architecture-manual, controllers, actions, repositories, query-builders, fleet-frontend-specification]
 ---
 
@@ -15,7 +15,7 @@ The **requirement of record for testing judgment** on every fleet Laravel app.
 bootless binding, coverage/type-coverage gates, strict PHPUnit flags, the mutation script — and
 this page does not restate it. What §3 leaves unsaid, and this page now mandates, is the
 **judgment layer: which tests get written, where each one lives, what it may assert, and what it
-must never do.** Front-end testing is governed by [[fleet-frontend-specification]] §5, not here.
+must never do.** Front-end testing is governed by [[fleet-frontend-specification]] §6, not here.
 
 Derived from the 2026-07-09 research pass: a capability map of Pest 4 / PHPUnit 12 / Laravel
 testing facilities, a distillation of the testing-quality literature (Khorikov, Meszaros, GOOS,
@@ -125,7 +125,7 @@ business risk. The line, made precise:
 | That a route resolves / returns 200 (as the sole assertion)                                     | A §3.1 wiring smoke asserting an actual outcome — or nothing.                                                                                             |
 | That the container resolves a binding, middleware runs in order, config returns its value       | Nothing — unless misconfig = incident, then **one** §3.3 canary at the thinnest seam.                                                                     |
 | That Eloquent saves/loads/soft-deletes; `assertDatabaseHas` echoing the row you just wrote      | Assert the **behavioral consequence** (what the next read / the user observes). Persistence-as-risk → one §3.2 test.                                      |
-| Blade/Inertia rendering internals (compiled HTML structure)                                     | Assert the **data handed to the view** (Inertia props); rendering belongs to the FE suite ([[fleet-frontend-specification]] §5).                          |
+| Blade/Inertia rendering internals (compiled HTML structure)                                     | Assert the **data handed to the view** (Inertia props); rendering belongs to the FE suite ([[fleet-frontend-specification]] §6).                          |
 
 **Do test (your logic the framework calls):** custom `ValidationRule` classes · policy methods
 as plain functions over (user, resource) — plus at most one §3.3 canary that the gate is

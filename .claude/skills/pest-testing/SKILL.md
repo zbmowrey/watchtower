@@ -16,7 +16,7 @@ bin/wiki inject --page pest-testing --depth 0                # per-repo matrix +
 The doctrine is the rule of record; this skill is the procedure. Operational config
 (suites, gates, strict flags, mutation script) is [[fleet-app-specification]] §3. Deep
 Pest/PHPUnit technique: the `php-tomes:php-testing` skill. Frontend tests:
-[[fleet-frontend-specification]] §5.
+[[fleet-frontend-specification]] §6.
 
 ## Writing tests — the placement algorithm (doctrine §2)
 

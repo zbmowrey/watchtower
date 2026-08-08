@@ -42,6 +42,12 @@ php artisan scramble:export --path=docs/openapi-v1.json --api=v1   # committed a
 git diff --exit-code docs/openapi-v1.json
 ```
 
+> **Bundle status (2026-08-08):** the export-diff and oasdiff steps below are the *specified*
+> gate — they are **not yet steps in the bundle's `ci.yml`**, and `dedoc/scramble` is not in
+> `composer.fragment.json` (it's per-app, per the leanness doctrine). Both steps land in an
+> app's CI with its first versioned API, alongside the [[problem-details]] renderer and
+> [[content-negotiation]] middleware pair.
+
 The build fails if the committed contract disagrees with what the code now generates —
 **every contract change becomes a reviewable PR diff**. This also breaks the circularity
 objection (generator and validator sharing one source): the committed file is the reviewed,

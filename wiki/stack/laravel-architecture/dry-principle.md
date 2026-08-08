@@ -12,9 +12,10 @@ related: [laravel-first-principles, models, services, controllers]
 Reuse code wherever possible. In practice this means:
 
 - **View layer** — reuse Blade components and partials instead of pasting markup.
-- **Query layer** — reuse Eloquent **query scopes** (e.g. `scopePublished()`)
-  rather than copying the same `where`-clauses across [[controllers]]. See
-  [[models]].
+- **Query layer** — reuse Eloquent **query scopes** (`#[Scope]` methods — see the
+  [[models]] declaration-style ruling) rather than copying the same `where`-clauses
+  across [[controllers]]; a scope shared as a *base query* graduates into a
+  [[query-builders|custom query builder]].
 - **Business logic** — extract shared logic into a **single well-named home**
   ([[actions]] / [[services]]) rather than duplicating it across controllers.
 

@@ -1,10 +1,10 @@
 ---
 title: Defense-in-Depth Model — the layer checklist
-description: A coverage template for reasoning about application security by layer rather than by control list — the eight layers a threat must cross, what class of control belongs at each, and the method for mapping your controls to recognized frameworks (OWASP Top 10, ASVS, CIS, NIST CSF) for legibility without pursuing certification.
+description: A coverage template for reasoning about application security by layer rather than by control list — the nine layers a threat must cross, what class of control belongs at each, and the method for mapping your controls to recognized frameworks (OWASP Top 10, ASVS, CIS, NIST CSF) for legibility without pursuing certification.
 tags: [security, defense-in-depth, layers, owasp, asvs, cis, nist, coverage]
 type: security
 status: reference
-updated: 2026-08-05
+updated: 2026-08-08
 related: [security-governance, incident-response-template, fleet-app-specification]
 ---
 

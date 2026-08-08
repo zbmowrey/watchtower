@@ -6,8 +6,10 @@ namespace App\Providers;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -49,6 +51,12 @@ class AppServiceProvider extends ServiceProvider
     {
         // All environments
         Date::use(CarbonImmutable::class);
+
+        // An unmapped polymorphic relation stores the model's FQCN in the type
+        // column — latent data corruption plus a refactor landmine. Apps define
+        // their morph map in the per-domain provider; with no polymorphics this
+        // guard is inert.
+        Relation::requireMorphMap();
 
         // Auto-batch relationship access on a collection into a single eager
         // load — the fix-side companion to shouldBeStrict's preventLazyLoading.
@@ -93,12 +101,49 @@ class AppServiceProvider extends ServiceProvider
                 ->symbols()
                 ->uncompromised());
 
+            // The two CORRECTNESS strictness flags stay on in production — a
+            // silently discarded attribute or a missing-attribute read is a data
+            // bug wherever it happens. Violations report() to Sentry instead of
+            // throwing, so the request survives (the performance flag,
+            // preventLazyLoading, stays off: automaticallyEagerLoadRelationships
+            // degrades that miss gracefully).
+            Model::preventSilentlyDiscardingAttributes();
+            Model::preventAccessingMissingAttributes();
+            Model::handleDiscardedAttributeViolationUsing(
+                function (Model $model, array $keys): void {
+                    report(new RuntimeException(sprintf(
+                        'Silently discarded attributes [%s] on %s.',
+                        implode(', ', $keys),
+                        $model::class,
+                    )));
+                },
+            );
+            Model::handleMissingAttributeViolationUsing(
+                function (Model $model, string $key): void {
+                    report(new RuntimeException(sprintf(
+                        'Accessed missing attribute [%s] on %s.',
+                        $key,
+                        $model::class,
+                    )));
+                },
+            );
+
             return;
         }
 
         // Non-production: strict mode flags N+1, mass-assignment drift, and
-        // accidental missing-attribute reads. Off in production so a single
-        // drifted row doesn't crash the cluster — caught in CI/dev instead.
+        // accidental missing-attribute reads loudly (throwing). The lazy-load
+        // flag stays dev-only; the two correctness flags carry into production
+        // above in report() form.
         Model::shouldBeStrict();
+
+        // Non-production mail sink: a staging box with real SMTP credentials
+        // must never mail a real customer. Inert when the config key is unset
+        // (the same pattern as the scheduler heartbeat).
+        $mailRedirect = config('mail.dev_redirect');
+
+        if (is_string($mailRedirect) && $mailRedirect !== '') {
+            Mail::alwaysTo($mailRedirect);
+        }
     }
 }

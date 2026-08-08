@@ -4,7 +4,7 @@ description: Vite, React and Tailwind behaviours that differ between the dev ser
 tags: [stack, vite, react, tailwind, csp, frontend, gotcha]
 type: stack
 status: reference
-updated: 2026-08-03
+updated: 2026-08-08
 related: [inertia-react, fleet-frontend-specification, fleet-local-gate]
 ---
 
@@ -52,7 +52,12 @@ A `.test.tsx` file placed under `resources/js/pages/` is picked up by the page g
 and **bundled into the production build**. It inflates the bundle, and it can drag
 test-only imports into prod chunks.
 
-Tests belong in `tests/js/`, never beside the page they cover.
+**Resolved by standard** ([[fleet-frontend-specification]] §6, v1.4): the M-1
+`app.tsx` page resolver excludes tests —
+`import.meta.glob(['./pages/**/*.tsx', '!./pages/**/*.test.tsx'])` — which makes the
+spec's colocation convention safe everywhere, including under `pages/`. The trap
+bites only an app still on the bare single-pattern glob: fix the glob, don't
+relocate the tests.
 
 ## `useWorker` CSP failures appear only in production
 

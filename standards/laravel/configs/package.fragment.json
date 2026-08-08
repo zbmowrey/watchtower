@@ -1,23 +1,30 @@
 {
-    "_comment": "Fleet-standard package.json pieces. Merge into each app's package.json (keep app deps). Install the devDependencies with `npm i -D <names>`. eslint.config.js / tsconfig.json / .prettierrc / vitest.config.ts ship in this bundle; copy them in. Hook standard: husky + lint-staged + commitlint (`prepare: husky` auto-installs hooks on npm install); the .husky/pre-commit + .husky/pre-push + .husky/commit-msg templates ship alongside this file, and commitlint.config.js ships in configs/ (copied to root). commit-msg enforces Conventional Commits and, like every hook, runs IN the vite container — it pipes the message to commitlint's stdin (`commitlint < \"$1\"`) to avoid host↔container path translation. FLEET STANDARD: the WHOLE toolchain (JS + PHP) runs INSIDE the dedicated `vite` compose service — npm/JS tools are never run on the host. The vite container has the app image (PHP + node), installs/maintains the shared Linux node_modules on `up`, and reaches Postgres on the compose net. Hooks invoke it as `./vendor/bin/sail exec -T -u sail vite <cmd>` (the .husky/* templates do this) and fail fast if vite isn't running. This avoids the host/container node_modules thrash entirely. Bundle-size gate: copy configs/bin/check-bundle-size.mjs to <app>/bin/, calibrate BUDGETS_KB from a clean `npm run build` (+~10% headroom), and wire `bundle:check` into the tests CI job after the build step. NODE PIN (spec v1 §1): `engines.node` = 24.x + `.nvmrc` (configs/.nvmrc) + `.npmrc engine-strict=true` pin Node to the ci-php image's 24; bump the app pin and ci-php in lockstep. NPM AUDIT: there is no `audit` script — CI runs `npm audit --omit=dev --audit-level=high` directly (audit-ci was dropped, spec v1 §4). jsx-a11y + type-aware eslint are in eslint.config.js (spec v1 §2). LINT-STAGED SCOPED PHPMD (spec v1 §4): the `*.php` task runs pint THEN `bin/phpmd-staged.sh` (copy `configs/bin/phpmd-staged.sh` to `<app>/bin/`, chmod +x) — phpmd run against ONLY the staged files (every phpmd.xml rule is intra-file, so the verdict matches a full `composer md` run for those files) at ~0.1s regardless of app size, vs a whole-`app/` run that scales (a large app is already ~6.4s). The helper comma-joins the paths (phpmd needs one comma-list arg) and mirrors CI's `*/Filament/*,*/Domain/*/Data/*` carve-outs so a staged file there can't trip a check CI would skip. The `.sh` helper is NOT an npm binary, so it needs no knip `ignoreDependencies` entry (unlike `lint-staged`/`@commitlint/cli`). Larastan/psalm/knip/jscpd are deliberately NOT here — they are whole-program (scoping them is unsound); larastan stays on pre-push where its result cache makes it ~1s warm.",
+    "_comment": "Fleet-standard package.json pieces. Merge into each app's package.json (keep app deps). Install the devDependencies with `npm i -D <names>`. eslint.config.js / tsconfig.json / .prettierrc / vitest.config.ts ship in this bundle; copy them in. Hook standard: husky + lint-staged + commitlint (`prepare: husky` auto-installs hooks on npm install); the .husky/pre-commit + .husky/pre-push + .husky/commit-msg templates ship alongside this file, and commitlint.config.js ships in configs/ (copied to root). commit-msg enforces Conventional Commits and, like every hook, runs IN the vite container — it pipes the message to commitlint's stdin (`commitlint < \"$1\"`) to avoid host↔container path translation. FLEET STANDARD: the WHOLE toolchain (JS + PHP) runs INSIDE the dedicated `vite` compose service — npm/JS tools are never run on the host. The vite container has the app image (PHP + node), installs/maintains the shared Linux node_modules on `up`, and reaches Postgres on the compose net. Hooks invoke it as `./vendor/bin/sail exec -T -u sail vite <cmd>` (the .husky/* templates do this) and fail fast if vite isn't running. This avoids the host/container node_modules thrash entirely. Bundle-size gate: copy configs/bin/check-bundle-size.mjs to <app>/bin/, calibrate BUDGETS_KB from a clean `npm run build` (+~10% headroom), and wire `bundle:check` into the tests CI job after the build step. NODE PIN (spec v1 §1): `engines.node` = 24.x + `.nvmrc` (configs/.nvmrc) + `.npmrc engine-strict=true` pin Node to the ci-php image's 24; bump the app pin and ci-php in lockstep. NPM AUDIT: there is no `audit` script — CI runs `npm audit --omit=dev --audit-level=high` directly (audit-ci was dropped, spec v1 §4). jsx-a11y + type-aware eslint are in eslint.config.js (spec v1 §2). LINT-STAGED SCOPED PHPMD (spec v1 §4): the `*.php` task runs pint THEN `bin/phpmd-staged.sh` (copy `configs/bin/phpmd-staged.sh` to `<app>/bin/`, chmod +x) — phpmd run against ONLY the staged files (every phpmd.xml rule is intra-file, so the verdict matches a full `composer md` run for those files) at ~0.1s regardless of app size, vs a whole-`app/` run that scales (a large app is already ~6.4s). The helper comma-joins the paths (phpmd needs one comma-list arg) and mirrors CI's `*/Filament/*,*/Domain/*/Data/*` carve-outs so a staged file there can't trip a check CI would skip. The `.sh` helper is NOT an npm binary, so it needs no knip `ignoreDependencies` entry (unlike `lint-staged`/`@commitlint/cli`). Larastan/psalm/knip/jscpd are deliberately NOT here — they are whole-program (scoping them is unsound); larastan stays on pre-push where its result cache makes it ~1s warm. SPEC v1.4 ADDITIONS (frontend spec §3/§5/§6): babel-plugin-react-compiler + @rolldown/plugin-babel are the React Compiler wiring for @vitejs/plugin-react v6 (order react() then babel(reactCompilerPreset()) in vite.config.ts — the inline react({babel}) form is silently OFF on v6); eslint-plugin-react-x / react-refresh / testing-library / jest-dom back the new eslint.config.js blocks; vitest-axe + @testing-library/user-event back frontend spec §6. Runtime deps deliberately NOT here (they are `dependencies`, added per app): @sentry/react (frontend spec §5 createRoot error hooks) and web-vitals (frontend spec §4 RUM beacon, public surfaces only).",
 
     "devDependencies": {
         "@commitlint/cli": "*",
         "@commitlint/config-conventional": "*",
         "@eslint/js": "*",
+        "@rolldown/plugin-babel": "*",
         "@stylistic/eslint-plugin": "*",
         "@testing-library/dom": "*",
         "@testing-library/jest-dom": "*",
         "@testing-library/react": "*",
+        "@testing-library/user-event": "*",
         "@types/node": "^24",
         "@vitest/coverage-v8": "*",
+        "babel-plugin-react-compiler": "*",
         "eslint": "*",
         "eslint-config-prettier": "*",
         "eslint-import-resolver-typescript": "*",
         "eslint-plugin-import": "*",
+        "eslint-plugin-jest-dom": "*",
         "eslint-plugin-jsx-a11y": "*",
         "eslint-plugin-react": "*",
-        "eslint-plugin-react-hooks": "*",
+        "eslint-plugin-react-hooks": "^6",
+        "eslint-plugin-react-refresh": "*",
+        "eslint-plugin-react-x": "*",
+        "eslint-plugin-testing-library": "*",
         "husky": "*",
         "jscpd": "^5",
         "jsdom": "*",
@@ -27,7 +34,8 @@
         "prettier-plugin-tailwindcss": "*",
         "typescript": "^6",
         "typescript-eslint": "*",
-        "vitest": "*"
+        "vitest": "*",
+        "vitest-axe": "*"
     },
 
     "engines": {

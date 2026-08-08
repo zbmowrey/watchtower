@@ -70,7 +70,7 @@ explicitly safe and idempotent"* (§1). Mechanics worth knowing:
 - **CORS**: every browser QUERY triggers a preflight (§4).
 
 **Fleet position: noted, not adopted** ([[fleet-api-specification]], considered-and-rejected
-tail). One month post-publication there is no end-to-end support in the chain we run
+tail). As of the last check (2026-08-08) there is no end-to-end support in the chain we run
 (ingress-nginx, CDNs, PHP-FPM/FrankenPHP, Laravel's router, Scramble/OpenAPI tooling), and
 the fleet's `filter[...]`/`sort` vocabulary ([[api-filtering-sorting]]) keeps query
 complexity comfortably inside URL limits. Revisit when a real consumer hits URL-length

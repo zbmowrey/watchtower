@@ -54,8 +54,11 @@ maps each dot path to a JSON Pointer (`#/users/2/email`) and each message to one
 ## The Laravel wiring
 
 Laravel ships `{message, errors?}` — **no problem+json anywhere in the framework** (verified against the 12.x docs and
-`Handler` source). The fleet renderer lives in `bootstrap/app.php`
-`withExceptions()` (canonical artifact in `standards/laravel/`):
+`Handler` source; re-checked 2026-08-08 against the 13.x release notes and upgrade guide through 13.24 — no
+problem-details support has been added; a full 13.x `Handler`-source re-verification rides the next
+[[framework-bump-playbook]] pass). The fleet renderer lives in `bootstrap/app.php`
+`withExceptions()` (reference shape below; **the golden artifact lands in `standards/laravel/` with the first API
+adopter** — it does not ship in the bundle yet):
 
 1. `shouldRenderJsonWhen()` covers `api/*` so exceptions never render HTML on the API plane.
 2. A single `respond()`/`render()` layer converts every Throwable to problem+json:

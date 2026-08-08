@@ -3,7 +3,7 @@ title: Pest Testing
 description: How testing is set up — Pest suites, coverage gates, mutation testing, and the right commands.
 tags: [stack, pest, testing, phpunit, infection, coverage, laravel]
 type: stack
-updated: 2026-07-10
+updated: 2026-08-08
 related: [fleet-testing-doctrine, testing-antipattern-catalog]
 ---
 
@@ -36,8 +36,8 @@ have to remember which API a given repo speaks. Common extras:
   via a `COVERAGE_MIN` repo variable. Run locally with `sail pest --coverage --min=<n>`.
 - **Browser/E2E** — `pest-plugin-browser` drives Playwright for true end-to-end
   tests; it needs browsers installed in the container.
-- **Mutation testing** — Infection or Pest's built-in `--mutate` scores test
-  quality; run it explicitly (see below), never in the PR gate.
+- **Mutation testing** — Pest's built-in `--mutate` scores test quality; run it
+  explicitly (see below), never in the PR gate.
 - **Drift** — `pest-plugin-drift` helps migrate a PHPUnit suite to Pest syntax.
 - **Frontend** — Vitest covers React component/unit tests (see [[inertia-react]]).
 
@@ -47,9 +47,10 @@ have to remember which API a given repo speaks. Common extras:
   structure — keep them green; they catch layering violations cheaply.
 - **Coverage:** enforce a minimum in CI, or gate via a `COVERAGE_MIN` repo
   variable. Run locally with `sail pest --coverage --min=<n>`.
-- **Mutation:** Infection runs in a `mutation.yml` CI workflow, covered classes
-  only, MSI threshold ~70%. Run locally via `sail composer infection` (verify the
-  script name in `composer.json`).
+- **Mutation:** Pest's `--mutate`, via the `composer mutation` script — **local-only,
+  never a CI workflow** (the fleet ruling; this bullet previously described an
+  Infection `mutation.yml` CI setup that contradicted the policy twenty lines below —
+  corrected 2026-08-08; Infection is not used). Policy + gotchas: next section.
 - **Browser: local-only, and it fails silent.** `pest-plugin-browser` drives
   Playwright and needs the browser **binary** installed in the container
   (`npm run test:browser:setup` inside the vite container). If CI ships no Chromium
@@ -68,6 +69,34 @@ Governed by [[fleet-testing-doctrine]] — unit-first and bootless; a needed fea
 test is an escalation (name which of the doctrine-§3 kinds it is); never test the
 framework. Factories + `RefreshDatabase` and facade fakes are Feature/Integration
 tools only, per the doctrine's doubles policy (§5).
+
+## Pest 5 (fleet mandate as of 2026-08-08 — spec §1)
+
+Released 2026-07-28; PHP ≥8.4 + PHPUnit 13, no API-level breaks from 4. What matters here:
+
+- **Test Impact Analysis (`--tia`)** — re-runs only affected tests, replays the rest from
+  cache *with coverage data intact* (the coverage gate stays honest). CI adoption shape:
+  baseline recorded per merge to `main` on the warm runner volume; cache miss degrades to a
+  full run. Spec §3 has the SHOULD.
+- **`--shard` existed in Pest 4;** what 5 adds is *time-balanced* sharding
+  (`--update-shards` → `tests/.pest/shards.json`).
+- **`pest-plugin-phpstan`** — first-party test-file inference; candidate to retire the
+  `TestCall` ignore (spec §2 / deviation D-01). Verify, then delete the deviation.
+
+## Traps that pass every gate (testing edition)
+
+- **Blanket `Event::fake()` silently disables model observers** — the faked dispatcher is
+  the same instance Eloquent uses, so `creating`/`saved` observers stop firing and factories
+  build subtly wrong worlds. Fake narrowly: `Event::fake([X::class])`, `->except([...])`, or
+  `Event::fakeFor(...)`; call `fake()` **after** factories otherwise.
+- **`fake()` and `$this->faker` are different generator instances** with independent
+  `unique()` registries (`Faker\Generator:en_US` vs the unsuffixed binding) — cross-test
+  uniqueness assumptions between the two are luck. Pick one spelling per app (the fleet uses
+  `fake()`).
+- **There is no `artisan test --seed`** — the test command passes unknown flags through
+  silently, which is why the myth survives. Never seed Faker anyway (it seeds global
+  `mt_srand`, silently coupling `array_rand`/`shuffle`/`Collection::random` — and not
+  `Str::random`): the doctrine's rule stands — **remove the randomness, don't seed it**.
 
 ## Mutation testing (Pest `--mutate`) — policy & gotchas
 

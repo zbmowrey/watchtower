@@ -28,7 +28,7 @@ configs/
   knip.json             # unused files/exports/deps (entry globs are per-app tunable)
   eslint.config.js      # typescript-eslint + react + hooks + import + stylistic + jsx-a11y + TYPE-AWARE (no-floating-promises, no-explicit-any:error first-party)
   tsconfig.json         # full strict — the 6 flags (noUncheckedIndexedAccess, noImplicitReturns, noFallthroughCasesInSwitch, noImplicitOverride, noUnusedLocals, noUnusedParameters); NO baseUrl (TS6)
-  .prettierrc / .prettierignore / .editorconfig / .npmrc (engine-strict) / .nvmrc (Node 22)
+  .prettierrc / .prettierignore / .editorconfig / .npmrc (engine-strict) / .nvmrc (Node 24)
   vitest.config.ts      # React unit layer (jsdom + testing-library)
   commitlint.config.js  # Conventional Commits ruleset (extends config-conventional)
   vendor-bin/phpmd/composer.json   # phpmd isolated via bamarni (dep tree can't clash with app)
@@ -37,7 +37,7 @@ configs/
   bin/baseline-guard.sh           # ratchet gate (ci.yml static job) — fails if a phpstan/phpmd/psalm baseline GREW vs merge-base
   tests/js/vitest.setup.ts         # Vitest setup (referenced by vitest.config.ts)
   composer.fragment.json           # require-dev (+psalm trio) + scripts (psalm-taint, local-only mutation) + extra + allow-plugins to MERGE
-  package.fragment.json            # devDependencies (+jsx-a11y, typescript ^6, NO audit-ci) + engines.node 22 + scripts to MERGE
+  package.fragment.json            # devDependencies (+jsx-a11y, typescript ^6, NO audit-ci) + engines.node 24 + scripts to MERGE
   logging.php                      # config/logging.php golden — stderr channel + LOG_STDERR_FORMATTER hook; prod = stderr JSON, file drivers forbidden (spec §5 / a documented tradeoff)
   logging.env.fragment             # .env.example logging block — local-dev file default + the prod stderr/JSON values (commented)
   sentry.env.fragment              # .env.example SENTRY_* block — error tracking OFF locally (empty DSN), conservative sampling; DSN via env only (spec §5, sentry/sentry-laravel require is in composer.fragment.json)
@@ -101,7 +101,7 @@ Full incident history → [[trivy-deploy-gate-base-image-cves]] in the wiki.
 > **This bundle implements [`fleet-app-specification`](../../wiki/standards/fleet-app-specification.md) (v1).**
 > The spec is the requirement of record; this is the reference apps copy from. Raised to v1
 > on 2026-06-27: psalm-taint + a local-only mutation script, jsx-a11y + type-aware eslint,
-> the full tsconfig strict set + dropped `baseUrl`, a Node 22 pin (`.nvmrc` + `engines.node`
+> the full tsconfig strict set + dropped `baseUrl`, a Node 24 pin (`.nvmrc` + `engines.node`
 > + `engine-strict`), phpmd `NumberOfChildren=30` + Data-DTO carve-out, and `npm audit` in
 > place of `audit-ci`. As of 2026-06-28 the bundle also ships the canonical
 > **`app/Providers/AppServiceProvider.php`** (the §5 `configureDefaults()` guardrails —
@@ -117,7 +117,7 @@ Full incident history → [[trivy-deploy-gate-base-image-cves]] in the wiki.
 > checklist and spec §5. As of 2026-07-10 the bundle also ships **`renovate.json` +
 > `.forgejo/workflows/renovate.yml`** — a self-hosted, per-app Renovate runner (composer +
 > npm, weekly digest, majors gated, automerge off) that finally makes real the fleet's
-> "Renovate/Dependabot SHOULD watch deps" line (fleet-frontend-specification §6) and any
+> "Renovate/Dependabot SHOULD watch deps" line (fleet-frontend-specification §7) and any
 > until-now-vestigial GitHub-only dependency configs (`.whitesource` /
 > `.github/dependabot.yml`) — see `dependency-updates`.
 
@@ -296,9 +296,13 @@ merge-base). Per tool:
   bundle target (jscpd **10**, coverage **80**, type-coverage **95**). Never loosen one.
 - **knip:** turn off the noisiest rules per app + `ignoreDependencies` for dead deps to
   pass now; the unused files/exports are a burn-down list — re-enable rules as cleaned.
-- **rector is NOT in the standard** — it conflicts with the phpstan L8 gate; phpstan L8 +
-  strict-rules + Pint cover the ground. No `rector.php`, `rector/rector` dep, or rector CI
-  step on any app.
+- **rector is a MUST-carry local tool, never a CI gate** (the 2026-07-10 owner ruling — this
+  paragraph previously said "rector is NOT in the standard" and survived that ruling by
+  accident; corrected 2026-08-08 to match the bundle it sits in: `configs/rector.php`, the
+  `rector/rector: ^2` dep, and the `composer rector` / `rector:fix` scripts are all standard).
+  It is the modernization engine — `withPhpSets()` keys off the composer floor, so the PHP
+  bump ritual is "raise floor → `composer rector:fix` → review" — while correctness stays
+  CI-gated by larastan/psalm/pest.
 
 ## Opt-in bundles — capabilities, not ratchets
 

@@ -25,14 +25,20 @@ choosing a [[supporting-building-blocks|Resource]] or view. This is
 ```php
 final class PublishPostController extends Controller
 {
-    public function __invoke(PublishPostRequest $request, Post $post): RedirectResponse
-    {
-        PublishPost::run($post, $request->toData());
+    public function __invoke(
+        PublishPostRequest $request,
+        Post $post,
+        PublishPost $publishPost,
+    ): RedirectResponse {
+        $publishPost($post, $request->toData());
 
         return to_route('posts.show', $post);
     }
 }
 ```
+
+(The action arrives container-injected and is called as the invokable it is — the fleet's one
+action entry point is `__invoke()`, per [[actions]]; static `::run()` spellings are not used.)
 
 Note the shape: a [[form-requests|Form Request]] handles validation and assembles a
 [[data-transfer-objects|DTO]]; an [[actions|Action]] does the work; the controller

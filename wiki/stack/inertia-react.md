@@ -3,7 +3,7 @@ title: Inertia + React
 description: The shared frontend architecture — Inertia v3, React 19, Vite 8, Tailwind 4, Wayfinder typed routes.
 tags: [stack, inertia, react, vite, tailwind, wayfinder, frontend]
 type: stack
-updated: 2026-06-13
+updated: 2026-08-08
 related: [laravel-sail]
 ---
 
@@ -20,7 +20,7 @@ The Laravel apps share one frontend stack.
 | Build        | **Vite 8** + `laravel-vite-plugin` + `@vitejs/plugin-react`                                                          |
 | Styling      | **Tailwind 4** (`@tailwindcss/vite`), Radix UI primitives, `lucide-react`, `tailwind-merge`                          |
 | Typed routes | **Laravel Wayfinder** (`laravel/wayfinder` + `@laravel/vite-plugin-wayfinder`) — generates TS for routes/controllers |
-| Types        | TypeScript 5/6, ESLint, Prettier (`prettier-plugin-tailwindcss`)                                                     |
+| Types        | TypeScript `^6` (the [[fleet-app-specification]] §1 mandate; TS 7 watched, not adopted), ESLint, Prettier (`prettier-plugin-tailwindcss`) |
 
 Apps add libraries as they need them — e.g. `zustand` for state, `@headlessui/react`,
 `recharts` for charts, `react-day-picker`, `break_infinity.js`.
