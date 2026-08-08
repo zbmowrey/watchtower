@@ -25,16 +25,18 @@ Every front-end file is one of three tiers. This bundle only owns the first two:
 - **M-2 — Converged pattern** — brand-bearing primitives (`components/ui/*`, layout scaffolding).
   **Same public API + a11y semantics; look flexes per app via tokens.** Structure-parity only.
 - **E — Expressive** — pages, `@theme` tokens, motion, copy, the bespoke surfaces. **Not here,
-  not converged.** Bound only by spec §2–§5 (well-shaped, modern, tested) — never "match another app."
+  not converged.** Bound only by spec §2–§6 (well-shaped, modern, tested) — never "match another app."
 
 The exact paths in each converged tier are listed in [`converged-set.md`](./converged-set.md).
 
 ## What's here / what will be here
 
 ```
-README.md            # this apply-guide
-converged-set.md     # the manifest: every M-1 (byte-parity) + M-2 (structural-parity) path
-react-drift.allow    # justified per-app divergences from the manifest (mirrors §8 of the spec)
+README.md                                # this apply-guide
+converged-set.md                         # the manifest: every M-1 (byte-parity) + M-2 (structural-parity) path
+react-drift.allow                        # justified per-app divergences from the manifest (mirrors §9 of the spec)
+scaffold/components/error-boundary.tsx   # M-1 recovery boundary (spec §5) — first authored source
+hooks/use-route-announcer.ts             # M-1 SPA-navigation a11y hook (spec §3) — first authored source
 ```
 
 **Migrating in (tracked as backlog B-2 → fleet frontend variance backlog):**
@@ -60,7 +62,7 @@ configs/             # eslint.config.js, tsconfig.json, .prettierrc, vitest.conf
 
 `bin/react-drift` (parallels `bin/arch-drift`) reads `converged-set.md` and, in the CI `static`
 job, asserts **M-1 paths are byte-identical** to this bundle and **M-2 paths keep API/export
-parity**. Justified divergences go in `react-drift.allow` and §8 of the spec — never silent.
+parity**. Justified divergences go in `react-drift.allow` and §9 of the spec — never silent.
 The guard itself is **backlog item B-1**; until it ships, parity is a review checklist.
 
 ## Applying to an app (go-forward)
@@ -68,4 +70,5 @@ The guard itself is **backlog item B-1**; until it ships, parity is a review che
 1. Read the spec: `bin/wiki inject --page fleet-frontend-specification`.
 2. New shared primitive/hook? Author it **here first**, then sync to the apps — never five times.
 3. Touching an M-1 file in an app? Reconcile it to this bundle (don't fork it locally).
-4. New feature code? Follow spec §2 (no god components), §3 (React-19/Inertia-v3 idioms), §5 (tests).
+4. New feature code? Follow spec §2 (no god components), §3 (React-19/Inertia-v3 idioms), §5
+   (error handling), §6 (tests).

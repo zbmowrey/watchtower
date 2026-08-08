@@ -14,7 +14,13 @@ Legend: **M-1** = byte-identical fleet-wide (compared to `standards/react/`); **
 ```
 lib/utils.ts                              # cn()
 app.tsx                                   # bootstrap SHAPE only (layout switch + withApp providers);
-                                          #   VITE_APP_NAME, progress color, layout list are per-app (E)
+                                          #   VITE_APP_NAME, progress color, layout list are per-app (E).
+                                          #   The SHAPE includes: createRoot onCaughtError/onUncaughtError
+                                          #   → Sentry (spec §5) and the test-excluding page glob
+                                          #   import.meta.glob(['./pages/**/*.tsx', '!./pages/**/*.test.tsx'])
+                                          #   (spec §6 — makes colocated page tests safe)
+components/error-boundary.tsx             # recovery-only boundary (spec §5) — authored: scaffold/components/
+hooks/use-route-announcer.ts              # SPA-navigation a11y (spec §3) — authored: hooks/
 hooks/use-appearance.tsx
 hooks/use-mobile.tsx
 hooks/use-mobile-navigation.ts
@@ -52,6 +58,9 @@ hooks/use-server-action.ts                          # mutate→snapshot→settle
 hooks/use-local-storage.ts                          # useSyncExternalStore, SSR-safe, cross-tab
 hooks/use-reduced-motion.ts                         # ONE canonical name (collapses use-motion-safe / use-prefers-reduced-motion)
 ```
+
+> On React 19.2 the ref-mirroring hooks above (`use-realtime-fallback`, `useCoalescedTick`,
+> `use-server-action`) are refactored to `useEffectEvent` **once, here** — spec §3.
 
 ## M-2 — structural / API parity (brand-bearing primitives; look free)
 
