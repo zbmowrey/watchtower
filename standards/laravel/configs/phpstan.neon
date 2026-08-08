@@ -15,8 +15,9 @@ parameters:
         - tests/Unit/
         - tests/Architecture/
 
-    # Day-1 ceiling: level 8, no baseline file. Greenfield code passes clean,
-    # and we never grandfather debt in. (Bump to 9/max later if desired.)
+    # Floor 8, target 10 (spec §2, 2026-08-08 — PHPStan 2.x ceiling is 10, and
+    # levels 9/10 machine-check the validate-at-the-boundary doctrine). Existing
+    # apps ratchet 8 → 9 → 10 clean-or-frozen-baseline; NEW APPS SET THIS TO 10.
     level: 8
 
     # phpstan-strict-rules on, minus the one Laravel-hostile rule:
@@ -27,6 +28,10 @@ parameters:
 
     # Treat readonly property writes outside the constructor as errors.
     checkModelProperties: true
+
+    # Enforces the php-language-doctrine #[\Override] mandate — a renamed parent
+    # method breaks the build instead of silently orphaning its overrides.
+    checkMissingOverrideMethodAttribute: true
 
     parallel:
         maximumNumberOfProcesses: 4

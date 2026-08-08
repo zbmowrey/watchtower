@@ -95,7 +95,7 @@ cat <<'CHECKLIST'
       `composer psalm-taint` + the copied psalm.xml), the local `composer mutation`
       gate (set --class to your logic layer + ratchet --min toward MSI 70), the
       jsx-a11y + type-aware eslint rules, the full-strict tsconfig, and the Node
-      pin (engines.node 22.x + .nvmrc + .npmrc engine-strict).
+      pin (engines.node 24.x + .nvmrc + .npmrc engine-strict).
 
   [ ] ⚠ RUNTIME-SECURITY LAYER — NOT scaffolded by this script (it's app-boot
       code, harvested per-app from a reference app). A greenfield app is NOT

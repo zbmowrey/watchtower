@@ -7,7 +7,7 @@
         "sentry/sentry-laravel": "^4.0"
     },
 
-    "_comment-deps-hygiene": "spec v1 §2 (added 2026-07-10): composer-require-checker (symbols used but not required) + composer-unused (packages required but not used) are the composer-side twins of knip. Configs: composer-require-checker.json + composer-unused.php (copy alongside). First run per app is measure-and-tune — whitelist/filter with a reason, or fix the manifest. rector is the LOCAL modernization tool (owner ruling 2026-07-10): config rector.php, `composer rector` previews / `composer rector:fix` applies, run before PHP/framework bumps — deliberately NOT in ci.yml. Verify each constraint resolves on merge; bump the major if composer refuses (same rule as sentry above).",
+    "_comment-deps-hygiene": "spec v1 §2 (added 2026-07-10): composer-require-checker (symbols used but not required) + composer-unused (packages required but not used) are the composer-side twins of knip. Configs: composer-require-checker.json + composer-unused.php (copy alongside). First run per app is measure-and-tune — whitelist/filter with a reason, or fix the manifest. rector is the LOCAL modernization tool (owner ruling 2026-07-10): config rector.php, `composer rector` previews / `composer rector:fix` applies, run before PHP/framework bumps — deliberately NOT in ci.yml. Verify each constraint resolves on merge; bump the major if composer refuses (same rule as sentry above). PEST 5 (spec bump 2026-08-08): requires PHP >=8.4 + PHPUnit 13, no API-level breaks from 4; the ^5 plugin constraints below follow Pest's majors-move-together convention — the first adopting app verifies each plugin's actual 5.x tag exists at merge and records any lag as a dated note here.",
 
     "require-dev": {
         "bamarni/composer-bin-plugin": "^1",
@@ -16,9 +16,9 @@
         "larastan/larastan": "^3",
         "laravel/pint": "^1",
         "maglnet/composer-require-checker": "^4",
-        "pestphp/pest": "^4",
-        "pestphp/pest-plugin-laravel": "^4",
-        "pestphp/pest-plugin-type-coverage": "^4",
+        "pestphp/pest": "^5",
+        "pestphp/pest-plugin-laravel": "^5",
+        "pestphp/pest-plugin-type-coverage": "^5",
         "phpstan/phpstan-strict-rules": "^2",
         "psalm/plugin-laravel": "^4",
         "rector/rector": "^2",
