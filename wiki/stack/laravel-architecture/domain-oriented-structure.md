@@ -53,14 +53,21 @@ transport-only]]: `Http/` depends on the domains, never the reverse.
 // tests/Pest.php
 pest()->presets()->custom('ddd', function () {
     return [
-        expect('App\Infrastructure')->toOnlyBeUsedIn('App\Application'),
-        expect('App\Domains')->not->toUse('Illuminate\Http'),
+        expect('App\Domains')->not->toUse(['Illuminate\Http', 'App\Http']),
+        expect('App\Support')->not->toUse('App\Http'),
     ];
 });
 
 // any arch test file
 arch()->preset()->ddd();
 ```
+
+*(Fixed 2026-08-08: the preset previously asserted on `App\Infrastructure`/`App\Application` —
+namespaces this page's own tree doesn't define. It now guards the documented shape:
+`App\Domains` + `App\Support`, with `Http/` central. An app running the hexagonal
+`Domain`/`Infrastructure` split uses the bundle's tiered suite instead — see the
+`standards/laravel/tests/Architecture/` README. **This page owns the `ddd` preset definition**;
+[[pest-arch-presets]] and [[pest-arch-example-suite]] point here rather than restating it.)*
 
 The wildcard syntax (`App\*\Traits`) is especially useful for cross-cutting
 subdirectory conventions in this layout — see [[pest-arch-wildcards]].

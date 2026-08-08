@@ -3,7 +3,7 @@ title: Actions — Single-Purpose Business Operations
 description: An Action encapsulates one business operation as a single-method, invokable class. Actions keep controllers thin and make each operation independently testable and reusable from controllers, jobs, and commands.
 tags: [laravel, architecture, building-blocks, actions]
 type: stack
-updated: 2026-06-17
+updated: 2026-08-08
 related: [laravel-building-blocks, services, controllers, data-transfer-objects, supporting-building-blocks, single-responsibility-principle, arch-expectations-file-type]
 ---
 
@@ -16,15 +16,17 @@ make each operation independently testable and reusable from controllers,
 [[single-responsibility-principle|SRP]] made concrete: one class, one reason to
 change.
 
-A common convention is a single `execute()`, `handle()`, or `__invoke()` entry
-point.
+**The fleet entry point is `__invoke()`** (ruled 2026-08-08 — the arch suite already enforces
+`toBeInvokable()`, so `execute()`/`handle()`/static `::run()` spellings were dead on arrival;
+the pages now agree with the suite). One class, one public entry point, constructor-injected
+collaborators:
 
 ```php
 final class PublishPost
 {
     public function __construct(private readonly Clock $clock) {}
 
-    public function execute(Post $post, CreatePostData $data): Post
+    public function __invoke(Post $post, CreatePostData $data): Post
     {
         $post->fill($data->toArray());
         $post->published_at = $this->clock->now();
@@ -37,10 +39,11 @@ final class PublishPost
 }
 ```
 
-> **Actions vs. Services.** An [[actions|Action]] does **one** thing; a
-> [[services|Service]] groups several related operations behind one cohesive class.
-> Many teams use only Actions; others use Services for read/write coordination and
-> Actions for discrete commands. **Pick one vocabulary and enforce its suffix.**
+> **Actions vs. Services.** An [[actions|Action]] does **one** thing — a full business
+> operation with a verb name; a [[services|Service]] groups reusable stateless logic
+> (calculation, formatting, a third-party client) behind one cohesive class. The failure mode
+> to avoid is the *sub-controller service*: an empty controller delegating to a service that
+> is itself a grab-bag pseudo-controller. When in doubt, it's an Action.
 
 Actions take input as a [[data-transfer-objects|DTO]] (clean, validated by the
 [[form-requests|Form Request]]) and decouple side effects through

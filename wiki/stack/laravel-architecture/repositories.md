@@ -3,20 +3,29 @@ title: Repositories
 description: The Repository pattern abstracts data access behind an interface. In vanilla Laravel it is optional; the fleet convention is that the moment an action or service queries the database, that query logic lives in a repository, and a repeated base query drops to a custom query builder.
 tags: [laravel, architecture, building-blocks, repository, data]
 type: stack
-updated: 2026-07-04
+updated: 2026-08-08
 related: [laravel-building-blocks, models, data-transfer-objects, services, actions, query-builders, dependency-rules]
 ---
 
 # Repositories
 
-The Repository pattern abstracts data access behind an **interface**. In vanilla
-Laravel it earns its keep when:
+The Repository pattern abstracts data access behind an **interface**. Naming the
+distinction precisely (sharpened 2026-08-08, because "repositories are an anti-pattern"
+discourse keeps re-litigating this page): **what the community condemns is the passthrough
+wrapper** — a repository that re-exposes Eloquent method-for-method (`find`, `where`, `all`)
+and returns models or builders, duplicating the ORM while abstracting nothing. That critique
+is correct, and **ours is not that pattern.** A fleet repository exists for three specific
+payoffs:
 
-- you may **swap the data source**, or
-- you want to **mock the data layer cleanly** in tests.
+- it **returns DTOs, never models or builders** — higher layers can't re-open the query;
+- it is the **enforcement point for scope walls** (tenant isolation, entitlement filtering)
+  via the [[query-builders|custom query builder]] it composes — a wall you can't forget at a
+  call site;
+- it is the **seam** [[fleet-testing-doctrine]] needs — a contract-faked port, so the logic
+  above it unit-tests bootlessly.
 
-On a bare Eloquent app it can otherwise be **unnecessary ceremony** — the community
-default is to adopt it intentionally, not reflexively.
+A simple read with no wall and no reuse **may stay on the query-builder path without a
+repository** — the pattern is adopted for those payoffs, not reflexively.
 
 ## The fleet convention
 

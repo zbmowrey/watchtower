@@ -4,7 +4,7 @@ description: The exhaustive catalog behind [[fleet-testing-doctrine]] — every 
 tags: [ standard, testing, anti-patterns, smells, pest, phpunit, audit ]
 type: standard
 status: normative
-updated: 2026-07-10
+updated: 2026-08-08
 related: [fleet-testing-doctrine, pest-testing, fleet-app-specification, pest-architecture-testing, fleet-frontend-specification]
 ---
 
@@ -56,7 +56,7 @@ The named enemy (doctrine §4). Common shapes in a Laravel codebase:
 8. **Rendering-internals test** — asserting compiled Blade HTML or Inertia component internals
    from PHP. *Harm:* structure-sensitive; duplicates the FE suite. *Instead:* assert props/data
    handed to the view; rendering belongs to Vitest/browser tests
-   ([[fleet-frontend-specification]] §5). **Detect:** `assertSee(<` / HTML-fragment literals in
+   ([[fleet-frontend-specification]] §6). **Detect:** `assertSee(<` / HTML-fragment literals in
    PHP tests.
 9. **Framework-auth mechanics** — testing that `auth` middleware redirects guests to login on
    every protected route. *Harm:* re-tests the middleware per route. *Instead:* one canary per

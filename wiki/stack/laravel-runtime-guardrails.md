@@ -22,15 +22,23 @@ Required identical on **all** the Laravel apps:
 
 | Guardrail                                                | What it does                                                                                       | Prod?               |
 |----------------------------------------------------------|----------------------------------------------------------------------------------------------------|---------------------|
+| APP_DEBUG-in-prod guard                                  | `throw RuntimeException` if production boots with `app.debug` true — fail closed.                  | prod only           |
 | `Date::use(CarbonImmutable::class)`                      | All `now()`/date casts return immutable Carbon — no spooky-action-at-a-distance mutation.          | on everywhere       |
-| **`Model::shouldBeStrict(! app()->isProduction())`**     | See below. Lazy-loads / silent attribute discards / missing-attribute reads **throw in dev & CI**. | **off in prod**     |
+| **`Model::shouldBeStrict(! app()->isProduction())`**     | See below. Lazy-loads / silent attribute discards / missing-attribute reads **throw in dev & CI**. | see split below     |
+| **Prod correctness flags** (added 2026-08-08)            | `preventSilentlyDiscardingAttributes()` + `preventAccessingMissingAttributes()` with `report()`-routed handlers — silent data bugs become Sentry events, not 500s. | **on in prod**      |
+| `Relation::requireMorphMap()` (added 2026-08-08)         | Unmapped morphs throw instead of storing class FQCNs — latent data corruption + refactor landmine. | on everywhere       |
+| `Model::automaticallyEagerLoadRelationships()`           | Auto-resolves would-be N+1s at runtime.                                                            | on everywhere       |
 | `DB::prohibitDestructiveCommands(app()->isProduction())` | Blocks `migrate:fresh`/`db:wipe`/`migrate:rollback` etc. against the prod connection.              | **on in prod only** |
 | `Password::defaults(…)`                                  | 12-char min, mixed/letters/numbers/symbols, `uncompromised()` (HIBP) — in prod; lenient locally.   | hardened in prod    |
+| `Vite::useCspNonce()` + `Vite::prefetch(concurrency: 3)` | Per-request CSP nonce; waterfall asset prefetch.                                                   | on everywhere       |
+| `URL::forceScheme('https')` + `URL::useOrigin(...)`      | Keyed on an `https://` `APP_URL`; MT apps omit `useOrigin` (spec §7 A-07).                         | env-keyed           |
+| `Mail::alwaysTo(config('mail.dev_redirect'))`            | Non-prod mail sink — a staging box with real SMTP creds must never mail a customer; inert unset.   | **non-prod only**   |
 
-**App-specific, deliberately NOT uniform** (present only where the front-end needs them):
-`URL::forceScheme('https')` + `URL::forceRootUrl()` behind the TLS-terminating proxy
-(key it on `isProduction()`, or on an `https://` `APP_URL`), and
-`Vite::useCspNonce()` (the per-request CSP nonce — a documented security tradeoff).
+*(Corrected 2026-08-08: an earlier revision of this page called `URL::forceScheme` and
+`Vite::useCspNonce` "app-specific, deliberately NOT uniform" — that drifted from the shipped,
+byte-identical `AppServiceProvider`, which has carried both fleet-wide, plus `Vite::prefetch`
+and the APP_DEBUG guard, since the spec v1 lock. The table above now matches the provider;
+the provider is the artifact of record.)*
 
 ## `Model::shouldBeStrict()` — the headline guardrail
 
@@ -42,10 +50,16 @@ One call flips three Eloquent strictness flags:
 - **`preventAccessingMissingAttributes`** — reading an attribute the row never loaded throws
   `MissingAttributeException`.
 
-**Why `! isProduction()` and not always-on:** strict mode is a *development microscope*,
-not a prod seatbelt. In prod a single drifted row mustn't 500 the cluster — CI/dev catches
-the violation first, prod degrades gracefully (returns null / no exception). This is
-uniform across the apps.
+**The split, refined 2026-08-08 (per-flag, not all-or-nothing):** `preventLazyLoading` is a
+*performance* microscope — dev/CI only; in prod, `automaticallyEagerLoadRelationships()`
+degrades the same miss gracefully (the pair is a deliberate reconciliation, not a
+contradiction). The other two are *correctness* guards — a silently discarded attribute or a
+missing-attribute read is a data bug wherever it happens — so prod keeps them **on**, with
+`handleDiscardedAttributeViolationUsing`/`handleMissingAttributeViolationUsing` routing to
+`report()`: Sentry sees it, the request survives. **Framing note:** Laravel's own docs never
+mention `shouldBeStrict()` and the official starter kits ship no strictness — this posture is
+a deliberate fleet stance (strongest third-party analysis: PlanetScale's safety-mechanisms
+piece), owned as ours.
 
 ### The gotcha it surfaces: DB-default columns aren't hydrated on factory instances
 

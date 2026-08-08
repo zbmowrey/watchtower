@@ -11,14 +11,18 @@ related: [laravel-performance, observability, models, repositories]
 
 - **Eliminate N+1 queries with eager loading (`with()`).** This is the single
   highest-impact fix; profile with Telescope or Debugbar to find them (see
-  [[observability]]). Consider `Model::preventLazyLoading()` in non-production to
-  **fail loudly** on N+1.
+  [[observability]]). The fleet's boot defaults already take both sides of this:
+  `Model::shouldBeStrict()` in non-production **fails loudly** on lazy loads, and
+  `Model::automaticallyEagerLoadRelationships()` degrades the same miss gracefully in
+  production ([[laravel-runtime-guardrails]] — the pair is deliberate).
 - **Index deliberately** — add indexes to columns used in `WHERE`, `ORDER BY`, and
   `JOIN` clauses; use **composite indexes** for multi-column conditions. Watch the
   slow-query log.
 - **Select only what you need** — avoid `SELECT *`; project the columns you use.
 - **Chunk heavy datasets** with `chunk()` / `lazy()` instead of loading everything
-  into memory.
+  into memory — and **use `chunkById()` / `lazyById()` whenever the loop mutates the
+  rows it's iterating**: offset-based chunking over a changing result set silently
+  skips or repeats rows (a correctness bug, not a performance one).
 - **Prefer Eloquent and collections** over raw SQL and arrays for readability, but
   **drop to the query builder for genuinely hot paths.** This is where
   [[repositories]] / [[models]] scopes keep the fast path in one place.

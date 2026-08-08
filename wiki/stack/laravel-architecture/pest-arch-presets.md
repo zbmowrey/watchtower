@@ -38,16 +38,14 @@ The `custom()` preset is how a [[domain-oriented-structure|domain-structured app
 codifies its inward-dependency rule once and reuses it:
 
 ```php
-// tests/Pest.php
-pest()->presets()->custom('ddd', function () {
-    return [
-        expect('App\Infrastructure')->toOnlyBeUsedIn('App\Application'),
-        expect('App\Domains')->not->toUse('Illuminate\Http'),
-    ];
-});
+// tests/Pest.php — definition owned by [[domain-oriented-structure]]; sketch:
+pest()->presets()->custom('ddd', fn () => [ /* the inward-dependency expectations */ ]);
 
 arch()->preset()->ddd();
 ```
+
+The `ddd` preset's actual expectation list is **owned by [[domain-oriented-structure]]** —
+one fact, one owner; this page documents only the `custom()` mechanism.
 
 Adopt presets **first** in the [[pest-arch-rollout|rollout]] — they're the
 cheapest, highest-value step. Note the `intl` caveat for `php()` in CI

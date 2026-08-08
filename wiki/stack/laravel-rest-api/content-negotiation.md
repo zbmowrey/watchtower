@@ -28,8 +28,10 @@ test matrix for consumers who, in 2026, universally speak JSON.
 ## What Laravel doesn't ship — and the fleet does
 
 Laravel decides HTML-vs-JSON per request via `expectsJson()`; there is **no framework
-middleware forcing JSON on an API group**, and the only official override is at the exception
-layer. The fleet closes it with a pair (canonical artifacts in `standards/laravel/`):
+middleware forcing JSON on an API group** (still true through 13.24, re-checked 2026-08-08), and
+the only official override is at the exception layer. The fleet closes it with a pair
+(reference shapes below; **the golden artifacts land in `standards/laravel/` with the first API
+adopter** — they do not ship in the bundle yet):
 
 1. **`ForceJsonResponse` middleware** on the api group — sets the request's `Accept` to
    `application/json` (after the 406 check), so every downstream `expectsJson()` branch,

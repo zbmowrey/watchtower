@@ -145,15 +145,8 @@ If you run the [[domain-oriented-structure|Domain structure]], codify the
 inward-dependency rule once as a reusable [[pest-arch-presets|custom preset]]:
 
 ```php
-// tests/Pest.php
-pest()->presets()->custom('ddd', function () {
-    return [
-        expect('App\Infrastructure')->toOnlyBeUsedIn('App\Application'),
-        expect('App\Domains')->not->toUse('Illuminate\Http'),
-    ];
-});
-
-// any arch test file
+// tests/Pest.php — the definition (and its expectation list) is owned by
+// [[domain-oriented-structure]]; register it there, invoke it here:
 arch()->preset()->ddd();
 ```
 

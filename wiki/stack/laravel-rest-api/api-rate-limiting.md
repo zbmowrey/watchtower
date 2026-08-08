@@ -11,8 +11,9 @@ related: [fleet-api-specification, sanctum-token-auth, problem-details]
 # API Rate Limiting
 
 Fleet norms → [[fleet-api-specification]] §10. Laravel 11+ **no longer binds a default
-`throttle:api`** — an app that never declares the limiter ships an unthrottled API while the
-route group looks protected. Declaring it is on us, every app, always.
+`throttle:api`** (still true through 13.24, re-checked 2026-08-08) — an app that never declares
+the limiter ships an unthrottled API while the route group looks protected. Declaring it is on
+us, every app, always.
 
 ## The fleet default
 
@@ -50,7 +51,8 @@ Revisit on RFC publication — it would be an additive header change.
 
 - **Named limiters for expensive/abuse-prone surfaces**: exports, `quotes:send`-style money
   paths, token minting — each its own `RateLimiter::for()` with its own budget.
-- **Response-based counting against enumeration** (Laravel 12): count only misses toward a
+- **Response-based counting against enumeration** (shipped in Laravel 12; promoted to a
+  headline rate-limiter API at Laracon US 2026): count only misses toward a
   tight bucket, so ID-guessing burns out fast while legitimate traffic doesn't —
   `Limit::perMinute(10)->by(...)->after(fn ($response) => $response->status() === 404)`.
 - Non-HTTP work (jobs sending mail on API's behalf) uses the `RateLimiter` facade directly —
