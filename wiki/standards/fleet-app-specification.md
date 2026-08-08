@@ -3,8 +3,8 @@ title: Fleet App Specification (v1 — mandated operational config)
 description: The normative Specification that mandates how every fleet Laravel app is configured and run — runtime/framework versions, static & lint guardrails, testing, CI/hooks/deploy, runtime guardrails, and how architecture is tested. Locks the operational "how" to a single standard while leaving business logic and domain depth free per app. Derived from a ground-truth audit + maintainer decisions. cquality measures it; this repo enforces it; this page is the requirement of record.
 tags: [ spec, standard, parity, guardrails, versions, mandate, laravel ]
 type: standard
-updated: 2026-08-01
-related: [ laravel-engineering-standard, fleet-frontend-specification, laravel-runtime-guardrails, cquality, pest-testing, repositories, query-builders, controllers ]
+updated: 2026-08-08
+related: [ laravel-engineering-standard, fleet-frontend-specification, fleet-webhook-specification, laravel-runtime-guardrails, cquality, pest-testing, repositories, query-builders, controllers, php-language-doctrine, fleet-queue-doctrine, framework-bump-playbook ]
 ---
 
 # Fleet App Specification — v1
@@ -59,21 +59,27 @@ top-level dependency** in every app: a dependency the starter kit scaffolded int
 `require`/`require-dev` (Fortify, Pest, Pint, Inertia, Wayfinder) is **direct and owned**,
 so pinning its major boundary is correct — but a precise *minor* floor that only records
 "what was latest on adoption day" is noise. State the boundary, not the snapshot.
+Two corollaries (added 2026-08-08): **the composer PHP floor MUST equal the lowest PHP version CI
+actually runs** — a floor no pipeline executes is an untested promise, and raising the floor is
+the honest fix, never a CI matrix bought for a version we don't deploy. And **pure dev-tooling JS
+packages MAY carry `*`** (the lockfile is the pin; Renovate proposes the bumps) — the
+major-boundary rule binds anything that shapes shipped output (React, Vite, Tailwind, TS) or whose
+majors change gate semantics (`jscpd`, `@types/node`).
 
 | Concern                 | Requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 |-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| PHP                     | composer floor **MUST be `^8.3`**; runtime image **MUST be PHP 8.4** (FrankenPHP alpine); CI **MUST run PHP 8.4** (the `ci-php` image).                                                                                                                                                                                                                                                                                                                                                                                                             |
+| PHP                     | composer floor **MUST be `^8.4`**; runtime image **MUST be PHP 8.5** (FrankenPHP alpine, `dunglas/frankenphp:1-php8.5-alpine`); CI **MUST run PHP 8.5** (the `ci-php` image). *Why 8.4 is the floor, not 8.3:* Laravel ≥13.3 pulls `symfony/console ^8.0`/`symfony/error-handler ^8.0` (PHP ≥8.4), so the advertised 8.3 floor doesn't resolve on fresh installs — and 8.3 has been security-only since 2025-12-31. *Why 8.5 is the runtime:* 8.4 drops to security-only 2026-12-31, and 13.x already gates features on 8.5 (`#[BindWhen]`). **Before an app's 8.5 image lands, run the PDO pre-flight in [[php-language-doctrine]]** (driver-constant deprecations + changed `FETCH_*` integer values).                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Laravel                 | **MUST be `^13`** (major boundary).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Inertia                 | **MUST** be `inertiajs/inertia-laravel ^3` + `@inertiajs/react ^3` (Inertia v3 major boundary).                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | React / Vite / Tailwind | **MUST** be React 19 · Vite 8 · Tailwind 4 (major boundaries).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Wayfinder               | **MUST be `^0.1.14`** — a *feature-justified minimum* (`--with-form` landed here) — generated with **`--with-form`**.                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Pest                    | **MUST be `^4`** (major boundary).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Pest                    | **MUST be `^5`** (major boundary; requires PHP ≥8.4 + PHPUnit 13 — no API-level breaks from 4). Adopt **Test Impact Analysis** (`--tia`) per §3 once on 5. *(Ratchet history: `^4` until 2026-08; Pest 5 released 2026-07-28.)*                                                                                                                                                                                                                                                                                                                      |
 | larastan                | **MUST be `^3`** (major boundary).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| TypeScript              | **MUST be `^6`** (major boundary). `baseUrl` **MUST NOT** be set (deprecated in TS6).                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| TypeScript              | **MUST be `^6`** (major boundary). `baseUrl` **MUST NOT** be set (deprecated in TS6). **TS 7 (the native/Go port) is watched, not adopted** — ecosystem compatibility (typescript-eslint, Vite plugin chain, Wayfinder output) unverified; revisit when the toolchain declares support.                                                                                                                                                                                                                                                             |
 | `@types/node`           | **MUST be `^24`** — a *runtime-justified floor* (tracks the Node 24 runtime, below).                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Node**                | **MUST be pinned to the `ci-php` Node (currently 24)** via **both `.nvmrc` and `package.json` `engines.node`**, with **`.npmrc engine-strict=true`** so off-version installs fail. The app pin and the `ci-php` Node version **MUST move in lockstep** — bumping one without the other is a spec violation. Node 24 is the fleet's *de-facto* runtime: the dev Sail containers (Sail 8.5, `NODE_VERSION=24`) and the prod image build (FrankenPHP `php8.4-alpine`, `nodejs` 24.x) already run 24; `ci-php` moved 22→24 to match (the lone laggard). |
+| **Node**                | **MUST be pinned to the `ci-php` Node (currently 24)** via **both `.nvmrc` and `package.json` `engines.node`**, with **`.npmrc engine-strict=true`** so off-version installs fail. The app pin and the `ci-php` Node version **MUST move in lockstep** — bumping one without the other is a spec violation. Node 24 is the fleet's *de-facto* runtime: the dev Sail containers (Sail 8.5, `NODE_VERSION=24`) and the prod image build (FrankenPHP alpine, `nodejs` 24.x) already run 24; `ci-php` moved 22→24 to match (the lone laggard). |
 | Fortify                 | **MUST be present** (it is direct in every app and §5's rate-limiters depend on it); **`^1`** (major boundary).                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Infra add-ons           | Reverb, Sanctum, Valkey/Redis, MinIO are **MAY (app-need)** — when present, each follows the major-boundary rule above. They change runtime config, deploy workloads, and *maybe* an integration-test service — but **MUST NOT** change the lint/test toolchain below.                                                                                                                                                                                                                                                                              |
+| Infra add-ons           | Reverb, Sanctum, Valkey/Redis, MinIO are **MAY (app-need)** — when present, each follows the major-boundary rule above. They change runtime config, deploy workloads, and *maybe* an integration-test service — but **MUST NOT** change the lint/test toolchain below. *(Scope note: "Sanctum MAY" operates at the app level — the moment an app exposes an HTTP API, Sanctum becomes **MUST** per [[fleet-api-specification]] §9. The two rules compose; they do not conflict.)*                                                                   |
 
 > *Open follow-up (not yet decided): pinning the Dockerfile build-stage Alpine Node. Today it
 > takes the Alpine package default — currently `nodejs` 24.x on FrankenPHP `php8.4-alpine` 3.24,
@@ -104,12 +110,22 @@ non-zero (never silently green) if `main` isn't reachable. Threshold loosening (
 coverage / type-coverage / knip) is not yet auto-gated — it is forbidden by this policy and
 caught as a visible config diff at review (a future `baseline-guard` extension may add it).
 
-**PHPStan / Larastan — MUST:** level **8** + `phpstan-strict-rules` (with
-`dynamicCallOnStaticMethod: false`) + `checkModelProperties: true`; the `nesbot/carbon`
+**PHPStan / Larastan — MUST:** level **8 floor, level 10 target** (updated 2026-08-08 —
+PHPStan 2.x moved the ceiling from 9 to 10). Levels 9/10 make `mixed` strict — explicit
+`mixed` at 9, implicit at 10 — which is the machine-checked form of [[validate-at-the-boundary]]:
+below 9, any `config()`/`->input()`/`json_decode()` value silently satisfies every type hint.
+The move is a **per-app one-way ratchet** (8 → 9 → 10, per the baseline policy: clean or with a
+frozen shrinking baseline); **new apps start at 10**. The companion idioms that make 9/10
+tractable — typed config/request accessors (`config()->string(…)`, `$request->integer(…)`),
+DTO boundaries — are [[php-language-doctrine]]'s §"mixed at the boundary". Plus
+`phpstan-strict-rules` (with `dynamicCallOnStaticMethod: false`) +
+`checkModelProperties: true` + **`checkMissingOverrideMethodAttribute: true`** (enforces the
+[[php-language-doctrine]] `#[\Override]` mandate); the `nesbot/carbon`
 extension included; `parallel: 4`; `reportUnmatchedIgnoredErrors: true`. Per the baseline
-policy: **prefer zero baseline** (the bar is L8-clean); a **frozen** `phpstan-baseline.neon`
+policy: **prefer zero baseline** (the bar is level-clean); a **frozen** `phpstan-baseline.neon`
 is permitted where an app needs one, but it may only shrink — a violation outside it fails
-CI, and it is never regenerated. The `TestCall`
+CI, and it is never regenerated. Once on Pest 5, evaluate **`pest-plugin-phpstan`** — it may
+obsolete the `TestCall` ignore and deviation D-01; verify, then delete the deviation. The `TestCall`
 ignore **MUST be scoped to `tests/Architecture/*`** *(ACCEPTED-DEVIATION: an app that also
 analyses `tests/Feature`+`tests/Unit` MAY scope it to `tests/*` — narrowing yields 1000+ false
 positives; §7 D-01)*.
@@ -188,7 +204,7 @@ larastan/psalm/pest.
 > the feature-test escalation path — is the normative [[fleet-testing-doctrine]] (smell list:
 > [[testing-antipattern-catalog]]).
 
-- **Suites — MUST:** Pest 4. **`Unit` and `Architecture` are mandatory on every app** (and stay
+- **Suites — MUST:** Pest 5 (§1). **`Unit` and `Architecture` are mandatory on every app** (and stay
   **bootless** — no framework boot, no DB, no boundary crossing). **`Feature` and `Integration`
   are conditional — required only when a qualifying test case exists:**
     - **`Feature`** — required **iff** a test case exists that **crosses a unit-testing boundary**
@@ -217,7 +233,19 @@ larastan/psalm/pest.
   `ARGON_TIME=1` (whichever driver the app uses, both are covered). Production hash cost defends
   against offline cracking — no test threat-models that; the driver itself stays production-true.
 - **Coverage gates — MUST:** `pest --coverage --min=80` and `type-coverage --min=95`, both
-  CI-gated. Coverage `<source>` = the whole `app/`, **no excludes**.
+  CI-gated. Coverage `<source>` = the whole `app/`, **no excludes**. Type-coverage **target is
+  100** (per the §2 ratchet policy: 95 is the floor, apps tighten toward 100; escape hatches are
+  `// @pest-ignore-type` with a one-line reason, never a lowered `--min`).
+- **Test Impact Analysis — SHOULD (once on Pest 5):** `--tia` in CI, with the baseline recorded
+  per merge to `main` on the warm runner volume (the same pattern as the larastan result cache).
+  TIA replays unaffected tests from cache **with coverage data intact**, so the coverage gate
+  stays honest. Full-suite runs remain the nightly/`workflow_dispatch` fallback; a TIA-cache miss
+  degrades to a full run, never a skipped one.
+- **Suite speed levers — SHOULD:** evaluate `WithCachedConfig` + `WithCachedRoutes` (Laravel
+  12.38+, in-process — immune to the stale-on-disk failure that keeps `config:cache` out of CI)
+  in the shared `TestCase`, and `LazilyRefreshDatabase` as a measured swap for `RefreshDatabase`
+  (adopt on before/after wall-time numbers, not on authority — Laravel's docs are silent on it).
+  Profiling evidence says **boot time, not the database, dominates** Laravel suite wall-time.
 - **Strict PHPUnit flags — MUST (every app):** `failOnRisky`, `failOnWarning`,
   `failOnEmptyTestSuite`, `beStrictAboutOutputDuringTests`,
   `beStrictAboutTestsThatDoNotTestAnything`.
@@ -328,8 +356,11 @@ observers, and rate limiting live in a separate **per-domain provider** (registe
 | Guardrail                                               | Required form                                                                                                                                                                         |
 |---------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | APP_DEBUG-in-prod guard                                 | `throw RuntimeException` if `isProduction() && config('app.debug') === true` (fail-closed).                                                                                           |
-| `Model::shouldBeStrict`                                 | `shouldBeStrict()` in the non-prod branch ≡ `shouldBeStrict(! app()->isProduction())` (strict in dev/CI, lenient in prod).                                                            |
-| `Model::automaticallyEagerLoadRelationships`            | on, every env.                                                                                                                                                                        |
+| `Model::shouldBeStrict`                                 | **Split by flag class (updated 2026-08-08).** Non-prod: `shouldBeStrict(true)` — all three protections throw (the development microscope). Prod: the *performance* flag (`preventLazyLoading`) stays **off**, but the two *correctness* flags — `preventSilentlyDiscardingAttributes()` + `preventAccessingMissingAttributes()` — are **on with `report()`-routed handlers** (`handleDiscardedAttributeViolationUsing`/`handleMissingAttributeViolationUsing`), so a silent data bug becomes a Sentry event, never a 500. *Framing note: this is a deliberate fleet stance — Laravel's own docs never mention `shouldBeStrict()`; own it as ours.* |
+| `Model::automaticallyEagerLoadRelationships`            | on, every env. *(Reconciliation, on the record: auto-eager-load resolves in prod exactly what `preventLazyLoading` throws on in dev — dev surfaces the N+1 shape loudly, prod degrades it gracefully. The pair is intentional, not contradictory.)*                                                                                                                                                                                                     |
+| `Relation::requireMorphMap`                             | on, every env (added 2026-08-08) — an unmapped morph stores a class-FQCN in the column: latent data corruption plus a refactor landmine. Apps define their morph map in the per-domain provider; an app with no polymorphics carries the guard inert.                                                                                                                                                                                                    |
+| `cache.serializable_classes = false`                    | **MUST** (added 2026-08-08; the Laravel 13 skeleton default) — hardens cache unserialization against gadget chains if `APP_KEY` leaks. An app caching PHP objects either allow-lists the classes or moves to array payloads; audit on adoption.                                                                                                                                                                                                          |
+| `Mail::alwaysTo`                                        | **SHOULD**, non-prod only, keyed on a config value (`config('mail.dev_redirect')`; unset = inert, same pattern as the heartbeat) — a staging box with real SMTP creds must never mail a real customer.                                                                                                                                                                                                                                                   |
 | `DB::prohibitDestructiveCommands`                       | `(app()->isProduction())`.                                                                                                                                                            |
 | `Password::defaults`                                    | prod: `min(12)->mixedCase()->letters()->numbers()->symbols()->uncompromised()`; non-prod lenient.                                                                                     |
 | `Date::use(CarbonImmutable)`                            | on.                                                                                                                                                                                   |
@@ -338,6 +369,7 @@ observers, and rate limiting live in a separate **per-domain provider** (registe
 | `Vite::prefetch(concurrency: 3)`                        | on — **waterfall** asset prefetch (3 at a time). NOT `useAggressivePrefetching()`: aggressive fans out a page's whole lazy-chunk graph at once, wasteful on chunk-heavy public pages. |
 | `Http::preventStrayRequests()`                          | in `TestCase::setUp` (test bootstrap), hermetic suite.                                                                                                                                |
 | RateLimiter                                             | Fortify limiters (login/two-factor[/passkeys]) as the floor; an `api` limiter where the app exposes an API.                                                                           |
+| Queue `after_commit`                                    | **MUST** where the app runs queues: `after_commit: true` on the queue connection config, so jobs dispatched inside transactions never race the uncommitted row. The full queue rule set (partitioning, retry attributes, observability, worker lifecycle) is [[fleet-queue-doctrine]] — this table keeps only the boot-time default.                                                                                                                    |
 
 > **Multi-tenant carve-out (§5 URL):** apps on the subdomain-per-tenant model **omit
 > `URL::useOrigin`** — it pins the host of every generated URL to the central
@@ -387,8 +419,9 @@ which holds as long as the app does **not** publish a `config/sentry.php` that d
 
 Bundle: the `sentry/sentry-laravel` require in
 [`composer.fragment.json`](../../standards/laravel/configs/composer.fragment.json) + the
-`SENTRY_*` `.env` fragment. **SHOULD (not yet mandated):** Sentry's **browser SDK** on the
-React/Inertia front end — a follow-up, not required tonight.
+`SENTRY_*` `.env` fragment. **MUST (since 2026-08-08):** Sentry's **browser SDK** on the
+React/Inertia front end — mandated by [[fleet-frontend-specification]] §5, which owns the
+wiring (`createRoot` `onUncaughtError`/`onCaughtError` in the M-1 bootstrap shape).
 
 **Error notification (Discord) — MUST (added 2026-07-10):** every deployed app's prod log stack
 carries a **`discord` channel** — the fleet's **`App\Logging\DiscordLogHandler`** (a `monolog`

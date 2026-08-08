@@ -4,8 +4,8 @@ description: The normative Specification for every HTTP API a fleet app exposes 
 tags: [spec, standard, api, rest, laravel, http, mandate]
 type: standard
 status: normative
-updated: 2026-08-01
-related: [fleet-app-specification, fleet-frontend-specification, http-method-semantics, http-status-codes, problem-details, api-versioning, sanctum-token-auth, openapi-scramble]
+updated: 2026-08-08
+related: [fleet-app-specification, fleet-frontend-specification, fleet-webhook-specification, http-method-semantics, http-status-codes, problem-details, api-versioning, sanctum-token-auth, openapi-scramble]
 ---
 
 # Fleet API Specification — v1
@@ -66,7 +66,7 @@ Deep reference → [[http-method-semantics]], [[api-versioning]].
 | ID | Rule |
 |---|---|
 | API-201 | Every versioned surface mounts at **`/api/v{major}`** (integer major, no minors — `/api/v1`, never `/api/v1.2`). Route names mirror it: `api.v1.*`. MT (stancl) apps register the group inside the tenant route file with the same URL shape and names — the spec constrains the URL and middleware stack, not the file. |
-| API-202 | Resource segments are **plural, kebab-case nouns** (`/booking-requests`), IDs are route parameters with an explicit constraint (`->whereUuid()` or equivalent). No verbs in URLs, with one exception: **lifecycle transitions are `POST` to a sub-path** (`POST /runs/{id}/complete`) — a controlled sub-resource, not RPC. `GET` never mutates (RFC 9110 §9.2.1). |
+| API-202 | Resource segments are **plural, kebab-case nouns** (`/booking-requests`), IDs are route parameters with an explicit constraint (`->whereUuid()` or equivalent). No verbs in URLs, with one exception: **lifecycle transitions are `POST` to a sub-path** (`POST /runs/{id}/complete`) — a controlled sub-resource, not RPC. `GET` never mutates (RFC 9110 §9.2.1). One recorded carve-out to the plural rule: a **combined container view over trashed resources** MAY use a singular container noun where the URL names one container and its contents remain reachable through plural list views. First user: the webhook recycle bin ([[fleet-webhook-specification]] / [[webhook-management-surface]]). |
 | API-203 | Plain CRUD **SHOULD use `Route::apiResource`** (canonical URIs + names for free); lifecycle and non-CRUD routes are explicit and named. Every route is named. |
 | API-204 | Nesting is **at most one level** and **shallow** (`->shallow()`): collection routes nest under the parent, member routes are flat. Deeper hierarchies flatten behind filters (`?filter[project_id]=`). |
 | API-205 | Nested bindings **MUST be scoped** — `->scoped([...])` or `->scopeBindings()` on every nested resource. Laravel does NOT scope child bindings by default: without this, `/photos/{photo}/comments/{comment}` happily serves a comment belonging to a different photo. This is a cross-tenant/cross-parent data leak, not a style point. |
@@ -136,7 +136,7 @@ Deep reference → [[content-negotiation]], [[conditional-requests-etags]].
 
 | ID | Rule |
 |---|---|
-| API-701 | The fleet speaks **JSON only**. `Accept: application/json` and `*/*` are honored; any Accept that excludes JSON gets **406** (problem+json — RFC 9457 §3 explicitly blesses sending it regardless of Accept). XML and other formats are considered-and-rejected: one representation, zero negotiation surprise. |
+| API-701 | The fleet speaks **JSON only**. `Accept: application/json` and `*/*` are honored; any Accept that excludes JSON gets **406** (problem+json — RFC 9457 §3 explicitly blesses sending it regardless of Accept). XML and other formats are considered-and-rejected: one representation, zero negotiation surprise. One recorded carve-out: a **streamed file-download endpoint whose URL names the representation** (e.g. an `…/export` route returning `text/csv`) MAY return that non-JSON type — the URL selects it, no negotiation occurs, errors stay problem+json, and the OpenAPI document declares the response content type explicitly (Scramble cannot infer a streamed CSV; annotate the response). First user: the webhook history export ([[fleet-webhook-specification]] WH-704). |
 | API-702 | The api group carries the fleet **ForceJsonResponse** middleware (sets the request's Accept to `application/json`) plus `shouldRenderJsonWhen()` covering `api/*` at the exception layer — Laravel ships no such forcing by default and HTML error pages on an API are a contract break. |
 | API-703 | Responses that vary on a request header beyond method+URI send **`Vary`** accordingly (never listing `Authorization`; never `Vary: *`). |
 | API-704 | **Every API response carries an explicit `Cache-Control`** — default `private, no-cache` for authenticated GETs, `no-store` where the body holds credentials/PII. Never rely on defaults: 404/405/410 are *heuristically cacheable* per RFC 9110 §15.1, so a bare API 404 can be cached by an intermediary. `public`/`s-maxage` MUST NOT appear on authenticated responses. |
@@ -213,6 +213,20 @@ an explicit ruling and a recorded why.
 **Considered and rejected** (one line each, so the next debate starts from evidence):
 **JSON:API envelope** — vocabulary borrowed (§5), envelope rejected: type-tagged resource
 objects + compound documents tax every client for a benefit CRUD APIs rarely collect.
+*Re-affirmed 2026-08-08 against Laravel 13's first-party `JsonApiResource`*
+(`make:resource --json-api`): first-party support removes the old package-quality objection but
+changes only the producer-side cost — the client-side tax (JSON:API document traversal to read a
+field, `included`-array linkage resolution) is untouched, and it lands where our doctrine's prior
+art (Stripe, GitHub) deliberately doesn't. Three additional disqualifiers as of 13.x: envelope
+shape is API-802-breaking (adoption = a forced v2 of every surface for zero capability);
+`JsonApiResource`'s `$attributes`/`$relationships`/lazy-closure shape is an unverified Scramble
+inference target, and §11's whole contract chain hangs on static legibility (the same reason
+laravel-data output was rejected); and it interprets `?include=` at the serialization layer,
+colliding with query-builder's DB-layer ownership of that reserved family (API-505 — the exact
+conflict already ruled on for `allowedRequestIncludes()`). It also switches Content-Type to
+`application/vnd.api+json`, reopening API-701. **Revisit triggers:** a real external-integrator
+ecosystem asking for generic JSON:API tooling, or a v2 forced by something else *plus* verified
+Scramble support for `JsonApiResource`.
 **HAL / OData** — hypermedia plumbing without payoff / a full query language + metadata model,
 both disproportionate. **Header/date versioning** — solves anonymous-integrator pinning at the
 cost of `Vary` correctness everywhere; wrong trade for first-party clients. **laravel-data as
