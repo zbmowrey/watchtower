@@ -92,8 +92,8 @@ DNS — a human is alerted in the channel they already watch, within minutes, wi
   incident into N conversations while hiding the correlation ("all six went at once") that names the
   cause. Down is also rarer and graver than an error spike, so it needs no per-app noise isolation.
   Error routing is unaffected: errors are app-shaped, availability is not.
-- **Contents — MUST:** app name, URL probed, failure class (5xx / timeout / TLS / DNS / body),
-  observed status, first-failure time.
+- **Contents — MUST:** app name, URL probed, failure class (5xx / timeout / TLS / DNS / body), the
+  observed status, and the time of first failure.
 - **Confirm, then dedupe — MUST:** never alert on a single failed probe — require **≥2 consecutive
   failures**, from **≥2 distinct probe locations** where offered; that is the whole flap-suppression
   budget, and §3's interval floor keeps it cheap in wall-clock. One incident then produces **one**
@@ -125,9 +125,8 @@ DNS — a human is alerted in the channel they already watch, within minutes, wi
 
 ## §6 Proving the path — the drill
 
-- **Cadence — MUST: at least quarterly**, deliberately break a **low-stakes target** and confirm the
-  alarm fires end to end. The target is a staging host or a purpose-built canary serving a trivial
-  page through the **identical** chain — never a production customer surface.
+- **Cadence — MUST: at least quarterly**, deliberately break a **low-stakes canary** — a staging
+  host on the **identical** chain, never a production surface — and confirm the alarm fires.
 - **What it asserts — MUST:** (a) the alert lands in the fleet channel, (b) within the minutes §3's
   interval and §4's threshold predict, (c) recovery fires on restore. All three, or it failed.
 - **After any change to the alert path — MUST:** the drill is part of that change, not a follow-up.
