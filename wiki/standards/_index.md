@@ -18,6 +18,11 @@ How every fleet Laravel app is engineered the same way. Three pages, three roles
   audit→converge→re-audit loop.
 - **Define & measure** → [[cquality]] — the audit rubric (public OSS).
 
+Around the core sit the **domain standards** — one page per operational concern
+(queues, webhooks in and out, storage, money, datetime, encryption, audit, privacy,
+isolation, backup/DR, realtime, notifications, flags, uptime, observability) — each the
+requirement of record for its domain, indexed below.
+
 The **runnable enforcement artifacts** apps copy from live in the repo at
 `standards/laravel/` (configs, CI template, arch suite, scaffold). The **dated rollout
 history** is a convergence log; the **open burndown** is a convergence backlog.
