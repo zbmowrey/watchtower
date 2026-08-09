@@ -48,12 +48,12 @@ on is [[defense-in-depth-model]]'s data row.
 - **The costs, so the choice is honest.** Per-tenant databases pay migration fan-out across N
   databases, pool pressure proportional to tenant count, a provisioning step in signup, schema-drift
   risk, and cross-tenant reporting that must fan out. Shared-with-RLS pays a permanent correctness
-  tax — every owned table needs the column, a policy, and an index — plus coarser recovery:
-  restoring one org means extracting rows, not restoring a database.
+  tax — every owned table needs the column, a policy, and an index — plus coarser recovery: one org
+  is restored by extracting rows, not by restoring a database.
 - **MUST NOT mix the models.** A shared database with per-tenant *connection strings*, or per-tenant
   databases treating an `org_id` policy as their primary boundary, buys both cost structures and
-  neither guarantee. Inside a tenant database, separating that tenant's *own* users is
-  authorization, not isolation — unless it carries a second ownership dimension, and then §4 applies.
+  neither guarantee. Inside a tenant database, separating that tenant's *own* users is authorization,
+  not isolation — unless it carries a second ownership dimension, and then §4 applies.
 
 ## §3 Database-per-tenant — the multi-tenant posture
 
@@ -69,11 +69,11 @@ tenants — no query, scoped or unscoped, raw or hand-typed into `psql`, crosses
   along in the same step.
 - **The central (landlord) role MUST NOT reach tenant databases**, nor a tenant role the central one.
   Cross-plane work fans out over tenant connections deliberately, never through one credential that
-  reaches everything. Tenant connection credentials are themselves stored crown jewels —
+  reaches everything. Those connection credentials are themselves stored crown jewels —
   [[encryption-at-rest-doctrine]] §3.1's first field class.
 - **Per-tenant restore and erasure are the payoff:** one database restores independently, and
-  dropping it *is* erasure with no row-hunt across shared tables. Mechanics →
-  [[backup-dr-standard]]; obligation → [[data-privacy-doctrine]].
+  dropping it *is* erasure with no row-hunt across shared tables (mechanics →
+  [[backup-dr-standard]], obligation → [[data-privacy-doctrine]]).
 - **Maintenance runs per tenant, through the tenancy runner — MUST.** A plainly wired scheduler entry
   executes once against the central connection and silently touches no tenant database — the trap in
   [[laravel-runtime-traps]], whose audit-shaped instance is [[audit-logging-standard]] §7.
@@ -95,7 +95,7 @@ application-runtime layer.
   connecting with the credentials that ran its migrations has RLS "enabled" and entirely inert.
   `FORCE` stays mandatory even under §5's two-role posture where it is redundant: it is the control
   that survives a later deployment collapsing the roles back into one. Superusers and `BYPASSRLS`
-  roles are unaffected by either — the runtime role **MUST NOT** be or hold one.
+  roles are unaffected by either — the runtime role **MUST NOT** be a superuser or hold `BYPASSRLS`.
 - **No policy means no rows.** RLS enabled with no applicable policy denies everything to non-bypass
   roles, and that default is the wanted one: a policy accidentally dropped breaks the app loudly
   instead of opening it quietly.
@@ -203,10 +203,9 @@ application-runtime layer.
 - **A suite running as the owner proves nothing.** Migrations need the migrator role, so tests
   connect on **both**: arrangement (migrations, factories, seeders spanning several orgs) on the
   privileged connection, act-and-assert on the runtime role. Without that split every RLS test
-  passes vacuously.
-- **The active-RLS canary — MUST.** One test seeds rows, establishes **no** principal, and asserts
-  the runtime connection reads zero. If it ever passes with rows the suite is theater and every
-  isolation test under it is meaningless.
+  passes vacuously — which is why **the active-RLS canary is MUST**: one test seeds rows, establishes
+  **no** principal, and asserts the runtime connection reads zero. If it ever passes with rows the
+  suite is theater and every isolation test under it is meaningless.
 - **The forgotten-scope test — MUST**, one per app: seed two orgs, establish org A, run the
   deliberately unscoped query (`Invoice::query()->get()`, or its raw-builder equivalent), assert
   every returned row belongs to A. It documents the guarantee, and belongs beside the policy rather
@@ -227,7 +226,7 @@ application-runtime layer.
 | A hot query regressed after adopting policies | No index leading with the ownership column; `VOLATILE` helper re-evaluated per row; `EXISTS(…)` policy on a transitively-owned table | Composite index; mark the helper `STABLE`; denormalize the column (§6) |
 | `pg_dump` errors, or silently dumps a subset | `row_security = off` is its default and errors when policies would filter; `--enable-row-security` dumps only visible rows | Dump on the `BYPASSRLS` migrator role (§5) |
 | A reporting view still shows everything | The view executes as its owner, laundering RLS | `security_invoker`, or delete the view (§4) |
-| Cross-tenant maintenance quietly no-ops (MT) | Scheduler entry wired against the central connection | Run it through the tenancy runner (§3, [[laravel-runtime-traps]]) |
+| Cross-tenant maintenance quietly no-ops (MT) | Scheduler entry wired against the central connection | The tenancy runner (§3, [[laravel-runtime-traps]]) |
 
 ## §9 Considered and rejected
 

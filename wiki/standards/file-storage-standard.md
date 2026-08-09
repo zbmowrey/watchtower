@@ -57,10 +57,9 @@ edge-cache bundle. This page governs *user files*, private by default.
   into the product. **Credentials** come from the secret store, scoped per bucket/prefix and
   rotatable ([[defense-in-depth-model]]) — one cluster-wide key defeats §3's isolation entirely.
 - **Local parity — SHOULD:** Sail (and CI, where integration tests need a real backend) runs an
-  S3-compatible container so dev exercises the production driver, key conventions and endpoint
-  style; falling back to `local` hides a class of prod-only failure. `Storage::fake()` is a
-  **Feature-suite tool** ([[fleet-testing-doctrine]] §5), not a substitute for bootless unit tests
-  of the key/type/disk logic.
+  S3-compatible container so dev exercises the production driver, key conventions and endpoint style;
+  falling back to `local` hides a class of prod-only failure. `Storage::fake()` is a **Feature-suite
+  tool** ([[fleet-testing-doctrine]] §5), not a substitute for bootless unit tests of key/type/disk.
 - **Encryption at rest** (bucket SSE, key custody) is owned by [[encryption-at-rest-doctrine]];
   **backup, versioning and restore drills** by [[backup-dr-standard]]. Neither is restated here —
   this page requires only that a new disk be enrolled in both before it holds real data.
@@ -108,8 +107,7 @@ edge-cache bundle. This page governs *user files*, private by default.
   sanitize it, and serve it only as an attachment or from an isolated origin. Never inline user SVG.
 - **Through-the-app upload is the DEFAULT.** FormRequest → action validates → `put()` → row created
   in the same transaction, object write last before commit. Buffers land in the writable `/tmp`
-  `emptyDir` (PHP's temp dir MUST point there — law 5) and the file MUST be streamed, never read
-  into a string.
+  `emptyDir` (PHP's temp dir MUST point there — law 5); the file MUST be streamed, never slurped.
 - **Presigned direct-to-bucket upload is the sanctioned exception — MAY**, for large media, very
   large imports, or any surface where occupying a PHP worker for the transfer is the real
   bottleneck. Allowed only with all five conditions: (1) **the server mints the key and policy** —
@@ -138,12 +136,11 @@ the stored sniffed value, sets `Content-Disposition` with the original filename,
 
 - **Signed app URLs** (`URL::temporarySignedRoute`) are how an unauthenticated viewer — an email
   recipient, a one-time share — reaches path (a). They point at **the app endpoint**, never the
-  origin, so revocation, expiry and audit stay the app's.
+  origin, so revocation, expiry and audit all stay the app's.
 - **Streaming — MUST:** never `get()` an object into a string to return it. For media needing
   **seeking**, do not reimplement byte ranges in PHP — that file belongs on path (b) or a
   post-authorization `temporaryUrl()` redirect, which get ranges from the backend for free.
-- **Cost:** every byte flows through the app — bandwidth, worker occupancy and pod scaling all
-  charged to the application plane.
+- **Cost:** every byte flows through the app — bandwidth, worker occupancy, pod scaling.
 
 **(b) Custom domain masking the origin — the scale path.** A dedicated hostname (`files.<host>`)
 fronted by Cloudflare, origin-restricted so only the edge reaches the bucket; authorization rides on
@@ -186,8 +183,7 @@ execute as first-party script: distinct hostname (b), or forced attachment dispo
   way — a generated report is a cache, not a record.
 - **Retention and erasure** — how long a class of file is kept, and what "delete my data" must do to
   objects, backups and derivatives — is owned by [[data-privacy-doctrine]]. This page requires only
-  that erasure be *possible*: law 4's row-to-object mapping and §3's tenant prefix make it a query
-  rather than an archaeology project.
+  that erasure be *possible*: law 4's mapping and §3's prefix make it a query, not archaeology.
 
 ## §8 Troubleshooting — symptom → cause → fix
 
@@ -200,7 +196,7 @@ execute as first-party script: distinct hostname (b), or forced attachment dispo
 | Model deleted, bytes remain | Deletion not modeled as a domain action | Delete-after-commit job; the reconciliation sweep catches the backlog (§7) |
 | Row exists, object missing | Aggressive lifecycle rule on a durable prefix; a sweep pointed at another env's bucket | Alert, never auto-delete the row — restore per [[backup-dr-standard]]; audit lifecycle rules and env→bucket wiring |
 | Presigned upload "succeeded", file never appears | Client never called the confirm endpoint | Confirm is mandatory (§4); `incoming` expiry cleans the leak |
-| Large uploads time out at the edge | Through-the-app path used for a file that needed direct-to-bucket | Move that surface to presigned upload with its five conditions (§4) |
+| Large uploads time out at the edge | Through-the-app path used where direct-to-bucket was needed | Move that surface to presigned upload with its five conditions (§4) |
 | Pod OOM on download | `get()` into a string instead of streaming | `response()`/`readStream()`; range-needing media goes to §5 path (b) |
 
 ## §9 Considered and rejected
