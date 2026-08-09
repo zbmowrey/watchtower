@@ -46,7 +46,7 @@ DNS — a human is alerted in the channel they already watch, within minutes, wi
   with what it watches** — the outage class this page exists for takes out the shared edge, and a
   prober behind that edge dies with it — and it adds **zero infrastructure that itself needs
   monitoring, patching and a deploy**. Its global probe network also gives §4's multi-location
-  confirmation free. Two probers on different vendor networks: **MAY**, where uptime is contractual.
+  confirmation free; a second prober on another vendor network is a **MAY**, for contractual uptime.
 - **Vantage point — MUST:** whatever the prober, it resolves the app's **public hostname** over the
   public internet and traverses the hops a browser does. **MUST NOT** target a ClusterIP, pod IP,
   internal service name, CDN-bypass hostname, or pinned `/etc/hosts` entry. **One skipped hop
@@ -81,7 +81,8 @@ DNS — a human is alerted in the channel they already watch, within minutes, wi
   because a hung edge is an outage rather than slowness; certificate validation is never disabled
   (invalid or expired = down) and the prober warns on **expiry 14+ days ahead**.
 - **Probe traffic — SHOULD** carry a stable identifying User-Agent, so it can be excluded from
-  analytics and narrowly **exempted** from bot/WAF rules by UA plus source (§8).
+  analytics and narrowly **exempted** from bot/WAF rules by UA plus source — a rule that blocks the
+  prober reads as an outage, and loosening it wholesale is not the fix.
 
 ## §4 Alert routing
 
@@ -141,8 +142,8 @@ DNS — a human is alerted in the channel they already watch, within minutes, wi
   service** (healthchecks.io — already carrying scheduler heartbeats per
   [[fleet-app-specification]]), and a missed ping alerts. A prober that dies, is suspended or
   exhausts its quota stops alerting, which is indistinguishable from health; self-hosted probers
-  (§2) carry this without exception. That alert MUST route through a **different path** than the
-  uptime alerts — two alarms on one webhook are one alarm.
+  (§2) carry this without exception. That alert MUST route through a **different path** (channel
+  *and* email) than the uptime alerts — two alarms on one webhook are one alarm.
 - **MUST NOT** treat the prober's own dashboard as this control (nobody opens it), and **MUST NOT**
   let a monitor's *own* transport failure page a human — the anti-pattern
   [[fleet-app-specification]] already rules on for the heartbeat ping. The queue-plane twin of this
