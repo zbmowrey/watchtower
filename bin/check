@@ -16,6 +16,11 @@ hard "wiki frontmatter"   bin/wiki lint
 hard "wiki hub integrity" bin/wiki lint --hubs
 hard "wiki hubs current"  bin/wiki index --check
 hard "skill rot"          bin/skill-lint --all
+if command -v claude >/dev/null 2>&1; then
+  hard "plugin marketplace" claude plugin validate . --strict
+else
+  echo "── plugin marketplace (skipped: claude CLI not installed)"
+fi
 soft "dangling wikilinks" bin/wiki lint --links
 
 echo ""

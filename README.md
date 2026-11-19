@@ -102,6 +102,66 @@ property, start at [`wiki/growth/_index.md`](wiki/growth/_index.md). To understa
 itself works, read [`wiki/meta/wiki-conventions.md`](wiki/meta/wiki-conventions.md).
 [`CLAUDE.md`](CLAUDE.md) is the operating manual an agent reads first.
 
+## Plugins
+
+This repo is also a Claude Code plugin marketplace named `watchtower`. The catalog is
+[`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json), and each plugin lives in
+its own folder under `plugins/` with its own README, version, and tests.
+
+| Plugin | Kind | What it does |
+|---|---|---|
+| [`status-pane`](plugins/status-pane/README.md) | Mod | A side pane with the session at a glance: idle time, weekly usage and pace, workspace, focus, task, model, context and cost. |
+
+### Install
+
+Add the marketplace and install a plugin in one step, from the prompt of a terminal session:
+
+```
+/plugin install status-pane --marketplace zbmowrey/watchtower
+```
+
+Or add the marketplace first and browse it:
+
+```
+/plugin marketplace add zbmowrey/watchtower
+/plugin install status-pane@watchtower
+```
+
+`/plugin marketplace update watchtower` pulls the latest catalog. A plugin updates when the
+`version` in its `plugin.json` changes.
+
+### status-pane
+
+A pane docked beside the chat, with five sections:
+
+- **Activity**: how long the session has been waiting on you, or how long the current turn has run.
+- **Model**: the model and effort, the context window as a bar with raw token counts, and the
+  session's estimated cost.
+- **Weekly**: usage against the 7-day cap, how far through the week you are, when it resets, and
+  a trend line. The usage bar is green, yellow, or red by whether the cap lasts to the reset at
+  your current rate, not by how full it is.
+- **Workspace**: repo, working directory, branch, and a short focus line describing what the
+  session is for.
+- **Task**: the ticket and pull request the work belongs to, with PR state and check counts.
+
+Claude keeps focus, ticket, and pull request current through a tool the plugin registers, so
+nothing extra is written into the chat. The pull request line needs the GitHub CLI signed in.
+
+`status-pane` is a mod: a plugin that changes Claude Code's own interface. The mod API is in
+early access and changes between releases. This one is built against Claude Code 2.1.328. Full
+details are in the [plugin README](plugins/status-pane/README.md).
+
+### Working on a plugin
+
+```bash
+claude plugin validate . --strict          # the marketplace and every plugin it lists
+claude plugin test plugins/status-pane     # one plugin's tests
+claude --plugin-dir plugins/status-pane    # a session with the local copy loaded
+```
+
+`bin/check` runs the first of these when the `claude` CLI is installed, so a broken catalog
+fails the pre-commit guard.
+
 ## License
 
 See [`LICENSE`](LICENSE).
