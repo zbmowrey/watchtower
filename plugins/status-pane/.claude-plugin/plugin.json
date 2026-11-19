@@ -1,0 +1,18 @@
+{
+  "name": "status-pane",
+  "version": "0.1.0",
+  "description": "A side pane with the session at a glance: idle time, weekly usage and pace, workspace, focus, task, model, context and cost.",
+  "author": { "name": "zbmowrey" },
+  "homepage": "https://github.com/zbmowrey/watchtower",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "warnMinutes": {
+      "type": "number",
+      "title": "Yellow zone, in minutes",
+      "description": "The usage bar turns yellow when, at the current rate, the weekly limit would be hit within this many minutes before it resets. Sooner than that, it turns red.",
+      "default": 720,
+      "min": 0
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "watchtower",
+  "owner": { "name": "zbmowrey" },
+  "description": "Plugins for Claude Code from the Watchtower engineering base.",
+  "plugins": [
+    {
+      "name": "status-pane",
+      "source": "./plugins/status-pane",
+      "description": "A side pane with the session at a glance: idle time, weekly usage and pace, workspace, focus, task, model, context and cost."
+    }
+  ]
+}
